@@ -31,6 +31,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define SHOWDEBUGSTR
 
 #include "Header.h"
+#include <commctrl.h>
 #include "../UnitTests/gtest.h"
 
 #pragma warning(disable: 4091)
@@ -45,6 +46,186 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "../common/WUser.h"
 #include "ConEmu.h"
 #include "SettingsStorage.h"
+#include "IatHook.h"
+#include "DarkMode.h"
+#include "ToolImg.h"
+
+namespace {
+bool WINAPI TestAppsUseDarkMode() { return true; }
+bool WINAPI TestAppsUseLightMode() { return false; }
+LRESULT CALLBACK TestPalettePreview(HWND window, UINT message, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR)
+{
+	if (message == WM_PRINTCLIENT)
+	{
+		RECT rc; GetClientRect(window, &rc);
+		const HDC dc = reinterpret_cast<HDC>(wp);
+		FillRect(dc, &rc, DarkMode::Brush(dc, RGB(255,100,0)));
+		return 0;
+	}
+	return DefSubclassProc(window, message, wp, lp);
+}
+
+struct RestoreDarkModeState
+{
+	fnShouldAppsUseDarkMode shouldAppsUseDarkMode = _ShouldAppsUseDarkMode;
+	fnGetIsImmersiveColorUsingHighContrast highContrast = _GetIsImmersiveColorUsingHighContrast;
+	bool supported = global::g_darkModeSupported;
+	bool enabled = global::g_darkModeEnabled;
+	~RestoreDarkModeState()
+	{
+		_ShouldAppsUseDarkMode = shouldAppsUseDarkMode;
+		_GetIsImmersiveColorUsingHighContrast = highContrast;
+		global::g_darkModeSupported = supported;
+		global::g_darkModeEnabled = enabled;
+	}
+};
+}
+
+TEST(DarkTitleBar, UnsupportedSystemAndOptionalHighContrastApi)
+{
+	RestoreDarkModeState restore;
+	global::g_darkModeSupported = false;
+	_ShouldAppsUseDarkMode = nullptr;
+	_GetIsImmersiveColorUsingHighContrast = nullptr;
+	gpConEmu->RefreshTitleBarThemeColor(nullptr);
+	EXPECT_FALSE(IsColorSchemeChangeMessage(reinterpret_cast<LPARAM>(L"ImmersiveColorSet")));
+	// An absent optional ordinal must not crash a supported system either.
+	global::g_darkModeSupported = true;
+	EXPECT_FALSE(IsColorSchemeChangeMessage(0));
+}
+
+TEST(DarkTitleBar, NativeWindowTracksAppTheme)
+{
+	if (!global::g_darkModeSupported || global::g_buildNumber < 22000)
+		GTEST_SKIP() << "DWM dark-mode readback requires Windows 11";
+	RestoreDarkModeState restore;
+	const HWND window = CreateWindowExW(0, L"STATIC", L"Dark title bar regression",
+		WS_OVERLAPPEDWINDOW, 0, 0, 320, 200, nullptr, nullptr, GetModuleHandle(nullptr), nullptr);
+	ASSERT_NE(nullptr, window);
+	_ShouldAppsUseDarkMode = TestAppsUseDarkMode;
+	gpConEmu->RefreshTitleBarThemeColor(window);
+	BOOL dark = FALSE;
+	EXPECT_EQ(S_OK, gpConEmu->DwmGetWindowAttribute(window, 20, &dark, sizeof(dark)));
+	EXPECT_EQ(IsHighContrast() ? FALSE : TRUE, dark);
+	_ShouldAppsUseDarkMode = TestAppsUseLightMode;
+	gpConEmu->RefreshTitleBarThemeColor(window);
+	EXPECT_EQ(S_OK, gpConEmu->DwmGetWindowAttribute(window, 20, &dark, sizeof(dark)));
+	EXPECT_EQ(FALSE, dark);
+	DestroyWindow(window);
+}
+
+TEST(DarkScrollBar, MissingImportDirectoryIsSafe)
+{
+	alignas(IMAGE_NT_HEADERS) BYTE module[1024] = {};
+	auto dos = reinterpret_cast<PIMAGE_DOS_HEADER>(module);
+	dos->e_magic = IMAGE_DOS_SIGNATURE;
+	dos->e_lfanew = sizeof(IMAGE_DOS_HEADER);
+	auto nt = reinterpret_cast<PIMAGE_NT_HEADERS>(module + dos->e_lfanew);
+	nt->Signature = IMAGE_NT_SIGNATURE;
+	nt->OptionalHeader.NumberOfRvaAndSizes = IMAGE_NUMBEROF_DIRECTORY_ENTRIES;
+	EXPECT_EQ(nullptr, FindDelayLoadThunkInModule(module, "uxtheme.dll", uint16_t(49)));
+	EXPECT_EQ(nullptr, FindIatThunkInModule(module, "uxtheme.dll", "OpenThemeData"));
+	EXPECT_EQ(nullptr, FindDelayLoadThunkInModule(nullptr, "uxtheme.dll", uint16_t(49)));
+}
+
+namespace {
+HWND testThemeWindow = nullptr;
+LPCWSTR testThemeClass = nullptr;
+HANDLE WINAPI RecordOpenTheme(HWND window, LPCWSTR name)
+{
+	testThemeWindow = window;
+	testThemeClass = name;
+	return nullptr;
+}
+}
+
+TEST(DarkScrollBar, HookTracksThemeAndPreservesOtherClasses)
+{
+	if (!global::g_darkModeSupported || !_OpenNcThemeData)
+		GTEST_SKIP() << "Dark scrollbar APIs unavailable";
+	HMODULE controls = GetModuleHandleW(L"comctl32.dll");
+	auto thunk = FindDelayLoadThunkInModule(controls, "uxtheme.dll", uint16_t(49));
+	if (!thunk) GTEST_SKIP() << "Common controls have no ordinal-49 delay import";
+	RestoreDarkModeState restore;
+	const auto original = _OpenNcThemeData;
+	_OpenNcThemeData = RecordOpenTheme;
+	const auto hook = reinterpret_cast<fnOpenNcThemeData>(thunk->u1.Function);
+	const HWND window = reinterpret_cast<HWND>(1);
+	_ShouldAppsUseDarkMode = TestAppsUseDarkMode;
+	hook(window, L"ScrollBar");
+	EXPECT_STREQ(IsHighContrast() ? L"ScrollBar" : L"Explorer::ScrollBar", testThemeClass);
+	EXPECT_EQ(IsHighContrast() ? window : nullptr, testThemeWindow);
+	_ShouldAppsUseDarkMode = TestAppsUseLightMode;
+	hook(window, L"ScrollBar");
+	EXPECT_STREQ(L"ScrollBar", testThemeClass);
+	EXPECT_EQ(window, testThemeWindow);
+	hook(window, L"Button");
+	EXPECT_STREQ(L"Button", testThemeClass);
+	EXPECT_EQ(window, testThemeWindow);
+	hook(window, nullptr);
+	EXPECT_EQ(nullptr, testThemeClass);
+	_OpenNcThemeData = original;
+}
+
+TEST(DarkControls, ToolbarBitmapSurvivesNativeToolbarRegistration)
+{
+	class TestImage : public CToolImg { public: using CToolImg::AddBitmap; } image;
+	const HDC screen = GetDC(nullptr);
+	const HDC dc = CreateCompatibleDC(screen);
+	const HBITMAP bitmap = CreateCompatibleBitmap(screen, 16, 16);
+	const HGDIOBJ old = SelectObject(dc, bitmap);
+	RECT rect = {0, 0, 16, 16};
+	FillRect(dc, &rect, DarkMode::Brush(dc, RGB(32,32,32)));
+	SetPixel(dc, 8, 8, RGB(0,255,0));
+	SelectObject(dc, old);
+	ASSERT_TRUE(image.Create(16, 16, 1, RGB(32,32,32)));
+	ASSERT_EQ(1, image.AddBitmap(bitmap, 1));
+	ASSERT_NE(nullptr, image.GetBitmap()); // This releases the construction DC.
+	SelectObject(dc, bitmap);
+	FillRect(dc, &rect, DarkMode::Brush(dc, RGB(80,80,80)));
+	EXPECT_TRUE(image.PaintButtonTransparent(0, dc, 0, 0));
+	EXPECT_EQ(RGB(0,255,0), GetPixel(dc, 8, 8));
+	EXPECT_EQ(RGB(80,80,80), GetPixel(dc, 0, 0));
+	SelectObject(dc, old); DeleteObject(bitmap); DeleteDC(dc); ReleaseDC(nullptr, screen);
+}
+
+TEST(DarkControls, NativeControlsRenderDarkAndReturnToLight)
+{
+	if (!global::g_darkModeSupported || IsHighContrast()) GTEST_SKIP();
+	RestoreDarkModeState restore;
+	_ShouldAppsUseDarkMode = TestAppsUseDarkMode;
+	const HWND parent = CreateWindowEx(0, L"STATIC", L"", WS_OVERLAPPEDWINDOW,
+		0, 0, 300, 200, nullptr, nullptr, GetModuleHandle(nullptr), nullptr);
+	ASSERT_NE(nullptr, parent);
+	const HWND button = CreateWindowEx(0, L"BUTTON", L"Apply", WS_CHILD | BS_PUSHBUTTON,
+		0, 0, 100, 30, parent, nullptr, GetModuleHandle(nullptr), nullptr);
+	const HWND label = CreateWindowEx(0, L"STATIC", L"Disabled", WS_CHILD | WS_DISABLED,
+		0, 40, 100, 30, parent, nullptr, GetModuleHandle(nullptr), nullptr);
+	const HWND header = CreateWindowEx(0, WC_HEADER, L"", WS_CHILD,
+		0, 80, 100, 30, parent, nullptr, GetModuleHandle(nullptr), nullptr);
+	const HWND preview = CreateWindowEx(0, L"STATIC", L"Preview", WS_CHILD,
+		0, 120, 100, 30, parent, nullptr, GetModuleHandle(nullptr), nullptr);
+	SetWindowSubclass(preview, TestPalettePreview, 1, 0);
+	DarkMode::ApplyDialog(parent);
+	const HDC screen = GetDC(nullptr), dc = CreateCompatibleDC(screen);
+	const HBITMAP bitmap = CreateCompatibleBitmap(screen, 100, 30);
+	const HGDIOBJ old = SelectObject(dc, bitmap);
+	SendMessage(button, BM_SETSTATE, TRUE, 0);
+	SendMessage(button, WM_PRINTCLIENT, reinterpret_cast<WPARAM>(dc), PRF_CLIENT);
+	EXPECT_EQ(RGB(80,80,80), GetPixel(dc, 7, 7));
+	SendMessage(label, WM_PRINTCLIENT, reinterpret_cast<WPARAM>(dc), PRF_CLIENT);
+	EXPECT_EQ(DarkMode::Background, GetPixel(dc, 99, 29));
+	SendMessage(header, WM_PRINTCLIENT, reinterpret_cast<WPARAM>(dc), PRF_CLIENT);
+	EXPECT_EQ(DarkMode::Background, GetPixel(dc, 99, 29));
+	SendMessage(preview, WM_PRINTCLIENT, reinterpret_cast<WPARAM>(dc), PRF_CLIENT);
+	EXPECT_EQ(RGB(255,100,0), GetPixel(dc, 99, 29));
+	_ShouldAppsUseDarkMode = TestAppsUseLightMode;
+	DarkMode::ApplyDialog(parent);
+	EXPECT_FALSE(global::g_darkModeEnabled);
+	EXPECT_EQ(nullptr, DarkMode::ControlColor(label, dc, WM_CTLCOLORSTATIC));
+	SelectObject(dc, old); DeleteObject(bitmap); DeleteDC(dc); ReleaseDC(nullptr, screen);
+	DestroyWindow(parent);
+}
 
 #if CE_UNIT_TEST==1
 #include "../common/MAssert.h"

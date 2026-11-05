@@ -31,6 +31,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define SHOWDEBUGSTR
 
 #include "Header.h"
+#include "DarkMode.h"
 #include "ConEmu.h"
 #include "FindPanel.h"
 #include "LngRc.h"
@@ -142,6 +143,8 @@ bool CFindPanel::OnCreateFinished()
 		mfn_EditProc = (WNDPROC)SetWindowLongPtr(mh_Edit, GWLP_WNDPROC, (LONG_PTR)EditCtrlProc);
 
 		EditIconHint_Set(mh_Pane, mh_Edit, true, SearchHint, false, UM_SEARCH, 0);
+		AllowDarkModeForWindow(mh_Edit, global::g_darkModeEnabled);
+		gpConEmu->SetWindowTheme(mh_Edit, global::g_darkModeEnabled ? L"DarkMode_CFD" : nullptr, nullptr);
 	}
 
 	return true;
@@ -214,6 +217,33 @@ LRESULT CFindPanel::FindPaneProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 	switch (uMsg)
 	{
+	case WM_THEMECHANGED:
+		if (pPanel && pPanel->mh_Edit)
+		{
+			AllowDarkModeForWindow(pPanel->mh_Edit, global::g_darkModeEnabled);
+			gpConEmu->SetWindowTheme(pPanel->mh_Edit, global::g_darkModeEnabled ? L"DarkMode_CFD" : nullptr, nullptr);
+			pPanel->Invalidate();
+		}
+		break;
+	case WM_CTLCOLOREDIT:
+	case WM_CTLCOLORSTATIC:
+		if (global::g_darkModeEnabled)
+		{
+			HDC dc = reinterpret_cast<HDC>(wParam);
+			SetTextColor(dc, DarkMode::Text);
+			SetBkColor(dc, DarkMode::Control);
+			return reinterpret_cast<LRESULT>(DarkMode::Brush(dc, DarkMode::Control));
+		}
+		break;
+	case WM_ERASEBKGND:
+		if (global::g_darkModeEnabled)
+		{
+			GetClientRect(hWnd, &rcClient);
+			FillRect(reinterpret_cast<HDC>(wParam), &rcClient,
+				DarkMode::Brush(reinterpret_cast<HDC>(wParam), DarkMode::Background));
+			return 1;
+		}
+		break;
 	case WM_CREATE:
 		if (!pPanel || !((CFindPanel*)((CREATESTRUCT*)lParam)->lpCreateParams)->OnCreate((CREATESTRUCT*)lParam))
 		{

@@ -34,6 +34,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define SHOWDEBUGSTR
 
 #include "Header.h"
+#include "DarkMode.h"
 #include "About.h"
 #include "AboutDlg.h"
 #include "ConEmu.h"
@@ -97,6 +98,7 @@ namespace ConEmuAbout
 INT_PTR WINAPI ConEmuAbout::aboutProc(HWND hDlg, UINT messg, WPARAM wParam, LPARAM lParam)
 {
 	INT_PTR lRc = 0;
+	if (DarkMode::ProcessDialogMessage(hDlg, messg, wParam, lParam, lRc)) return lRc;
 	if ((mp_ImgBtn && mp_ImgBtn->Process(hDlg, messg, wParam, lParam, lRc))
 		|| EditIconHint_Process(hDlg, messg, wParam, lParam, lRc))
 	{
@@ -105,6 +107,7 @@ INT_PTR WINAPI ConEmuAbout::aboutProc(HWND hDlg, UINT messg, WPARAM wParam, LPAR
 	}
 
 	PatchMsgBoxIcon(hDlg, messg, wParam, lParam);
+
 
 	switch (messg)
 	{
@@ -130,6 +133,23 @@ INT_PTR WINAPI ConEmuAbout::aboutProc(HWND hDlg, UINT messg, WPARAM wParam, LPAR
 			if ((ghOpWnd && IsWindow(ghOpWnd)) || (WS_EX_TOPMOST & GetWindowLongPtr(ghWnd, GWL_EXSTYLE)))
 			{
 				SetWindowPos(hDlg, HWND_TOPMOST, 0,0,0,0, SWP_NOMOVE|SWP_NOSIZE);
+			}
+
+			if (global::g_darkModeSupported)
+			{
+				HWND hOkBtn = GetDlgItem(hDlg, IDOK);
+				if (hOkBtn)
+					gpConEmu->SetWindowTheme(hOkBtn, L"Explorer", nullptr);
+
+				HWND hTab = GetDlgItem(hDlg, tbAboutTabs);
+				if (hTab)
+					gpConEmu->SetWindowTheme(hTab, L"Explorer", nullptr);
+
+				HWND hEdit = GetDlgItem(hDlg, tAboutSearch);
+				if (hEdit)
+					gpConEmu->SetWindowTheme(hEdit, L"Explorer", nullptr);
+
+				SendMessageW(hDlg, WM_THEMECHANGED, 0, 0);
 			}
 
 			const wchar_t* pszActivePage = reinterpret_cast<LPCWSTR>(lParam);
@@ -214,14 +234,12 @@ INT_PTR WINAPI ConEmuAbout::aboutProc(HWND hDlg, UINT messg, WPARAM wParam, LPAR
 				TabSelected(hDlg, static_cast<int>(nPage));
 				TabCtrl_SetCurSel(hTab, static_cast<int>(nPage));
 			}
-			else if (!pszActivePage)
-			{
-				TabSelected(hDlg, 0);
-			}
 			else
 			{
-				_ASSERTE(pszActivePage==nullptr && "Unknown page name?");
+				TabSelected(hDlg, 0);
+				TabCtrl_SetCurSel(hTab, 0);
 			}
+			DarkMode::ApplyDialog(hDlg);
 
 			SetFocus(hTab);
 
@@ -229,7 +247,15 @@ INT_PTR WINAPI ConEmuAbout::aboutProc(HWND hDlg, UINT messg, WPARAM wParam, LPAR
 		}
 
 		case WM_CTLCOLORSTATIC:
-			if (GetWindowLongPtr(reinterpret_cast<HWND>(lParam), GWLP_ID) == stConEmuUrl)
+		{
+			// Dark mode handling
+			if (global::g_darkModeSupported && global::g_darkModeEnabled)
+			{
+				return reinterpret_cast<INT_PTR>(DarkMode::ControlColor(reinterpret_cast<HWND>(lParam),
+					reinterpret_cast<HDC>(wParam), messg));
+			}
+			// Handle URL link color (normal mode)
+			else if (GetWindowLongPtr(reinterpret_cast<HWND>(lParam), GWLP_ID) == stConEmuUrl)
 			{
 				SetTextColor(reinterpret_cast<HDC>(wParam), GetSysColor(COLOR_HOTLIGHT));
 				HBRUSH hBrush = GetSysColorBrush(COLOR_3DFACE);
@@ -243,6 +269,7 @@ INT_PTR WINAPI ConEmuAbout::aboutProc(HWND hDlg, UINT messg, WPARAM wParam, LPAR
 				SetBkMode(reinterpret_cast<HDC>(wParam), TRANSPARENT);
 				return reinterpret_cast<INT_PTR>(hBrush);
 			}
+		}
 
 		case WM_SETCURSOR:
 			{
@@ -323,6 +350,46 @@ INT_PTR WINAPI ConEmuAbout::aboutProc(HWND hDlg, UINT messg, WPARAM wParam, LPAR
 		case WM_DESTROY:
 			mh_AboutDlg = nullptr;
 			break;
+
+		case WM_SETTINGCHANGE:
+		{
+			if (global::g_darkModeSupported
+				&& (IsColorSchemeChangeMessage(lParam) || wParam == SPI_SETHIGHCONTRAST))
+				SendMessageW(hDlg, WM_THEMECHANGED, 0, 0);
+		}
+		break;
+		case WM_THEMECHANGED:
+		{
+			if (global::g_darkModeSupported)
+			{
+				gpConEmu->RefreshTitleBarThemeColor(hDlg);
+
+				// Apply dark theme to controls
+				HWND hButton = GetDlgItem(hDlg, IDOK);
+				if (hButton)
+				{
+					_AllowDarkModeForWindow(hButton, global::g_darkModeEnabled);
+					SendMessageW(hButton, WM_THEMECHANGED, 0, 0);
+				}
+
+				HWND hTab = GetDlgItem(hDlg, tbAboutTabs);
+				if (hTab)
+				{
+					_AllowDarkModeForWindow(hTab, global::g_darkModeEnabled);
+					SendMessageW(hTab, WM_THEMECHANGED, 0, 0);
+				}
+
+				HWND hEdit = GetDlgItem(hDlg, tAboutSearch);
+				if (hEdit)
+				{
+					_AllowDarkModeForWindow(hEdit, global::g_darkModeEnabled);
+					SendMessageW(hEdit, WM_THEMECHANGED, 0, 0);
+				}
+
+				UpdateWindow(hDlg);
+			}
+		}
+		break;
 
 		default:
 			if (mp_DpiAware && mp_DpiAware->ProcessDpiMessages(hDlg, messg, wParam, lParam))

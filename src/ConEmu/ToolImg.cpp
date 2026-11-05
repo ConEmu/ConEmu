@@ -436,6 +436,20 @@ bool CToolImg::GetSizeForHeight(int nPreferHeight, int& nDispW, int& nDispH)
 	return (nDispH > 0);
 }
 
+bool CToolImg::PaintButtonTransparent(int iBtn, HDC dc, int x, int y) const
+{
+	// Toolbar bitmaps are a uniform horizontal strip. GetBitmap releases the
+	// construction DC, so use a temporary source DC for custom drawing.
+	if (!mh_Bmp || iBtn < 0 || iBtn >= mn_BtnCount) return false;
+	HDC source = CreateCompatibleDC(dc);
+	if (!source) return false;
+	HGDIOBJ old = SelectObject(source, mh_Bmp);
+	const bool result = GdiTransparentBlt(dc, x, y, mn_BtnWidth, mn_BtnHeight,
+		source, iBtn * mn_BtnWidth, 0, mn_BtnWidth, mn_BtnHeight, mcr_Background) != FALSE;
+	SelectObject(source, old); DeleteDC(source);
+	return result;
+}
+
 bool CToolImg::PaintButton(int iBtn, HDC hdcDst, const int nDstX, const int nDstY, const int nDstWidth, const int nDstHeight) const
 {
 	if (!mh_Bmp || !mprc_Btns || (iBtn >= mn_BtnCount) || (mn_BtnCount <= 0))

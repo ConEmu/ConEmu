@@ -38,6 +38,8 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "DpiAware.h"
 #include "ImgButton.h"
 #include "ToolImg.h"
+#include "ConEmu.h"
+#include "DarkMode.h"
 
 wchar_t gsDonatePage[] = CEDONATEPAGE;
 wchar_t gsFlattrPage[] = CEFLATTRPAGE;
@@ -206,6 +208,18 @@ bool CImgButtons::Process(HWND ahDlg, UINT messg, WPARAM wParam, LPARAM lParam, 
 				if (pBtn->pImg)
 				{
 					DRAWITEMSTRUCT* p = (DRAWITEMSTRUCT*)lParam;
+					if (global::g_darkModeEnabled)
+					{
+						const int saved = SaveDC(p->hDC);
+						FillRect(p->hDC, &p->rcItem, DarkMode::Brush(p->hDC, DarkMode::Control));
+						FrameRect(p->hDC, &p->rcItem, DarkMode::Brush(p->hDC, RGB(100,100,100)));
+						SelectObject(p->hDC, reinterpret_cast<HFONT>(SendMessage(ahDlg, WM_GETFONT, 0, 0)));
+						SetBkMode(p->hDC, TRANSPARENT); SetTextColor(p->hDC, DarkMode::Text);
+						DrawText(p->hDC, pBtn->ResId, -1, &p->rcItem, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+						RestoreDC(p->hDC, saved);
+						lResult = TRUE;
+						return true;
+					}
 					bool bRc = pBtn->pImg->PaintButton(-1, p->hDC, p->rcItem.left, p->rcItem.top, p->rcItem.right-p->rcItem.left, p->rcItem.bottom-p->rcItem.top);
 					if (bRc)
 					{

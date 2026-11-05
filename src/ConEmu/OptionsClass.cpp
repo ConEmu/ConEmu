@@ -33,6 +33,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define SHOWDEBUGSTR
 
 #include "Header.h"
+#include "DarkMode.h"
 #include "version.h"
 
 #include <commctrl.h>
@@ -2058,6 +2059,7 @@ INT_PTR CSettings::wndOpProc(HWND hWnd2, UINT messg, WPARAM wParam, LPARAM lPara
 	}
 
 	PatchMsgBoxIcon(hWnd2, messg, wParam, lParam);
+	if (DarkMode::ProcessDialogMessage(hWnd2, messg, wParam, lParam, lRc)) return lRc;
 
 	switch (messg)
 	{
@@ -2075,6 +2077,7 @@ INT_PTR CSettings::wndOpProc(HWND hWnd2, UINT messg, WPARAM wParam, LPARAM lPara
 
 			SetClassLongPtr(hWnd2, GCLP_HICON, reinterpret_cast<LONG_PTR>(hClassIcon));
 			gpSetCls->OnInitDialog();
+			DarkMode::ApplyDialog(hWnd2);
 			break;
 
 		case WM_SYSCOMMAND:
@@ -2317,13 +2320,13 @@ INT_PTR CSettings::OnCtlColorStatic(HWND hDlg, HDC hdc, HWND hCtrl, WORD nCtrlId
 		if (!(nStyle & SS_NOTIFY))
 			SetWindowLong(hCtrl, GWL_STYLE, nStyle|SS_NOTIFY);
 		// And the colors
-		SetTextColor(hdc, GetSysColor(COLOR_HOTLIGHT));
+		SetTextColor(hdc, global::g_darkModeEnabled ? RGB(110,170,220) : GetSysColor(COLOR_HOTLIGHT));
 		SetBkMode(hdc, TRANSPARENT);
-		HBRUSH hBrush = GetSysColorBrush(COLOR_3DFACE);
+		HBRUSH hBrush = global::g_darkModeEnabled ? DarkMode::Brush(hdc, DarkMode::Background) : GetSysColorBrush(COLOR_3DFACE);
 		return reinterpret_cast<INT_PTR>(hBrush);
 	}
 
-	return FALSE;
+	return reinterpret_cast<INT_PTR>(DarkMode::ControlColor(hCtrl, hdc, WM_CTLCOLORSTATIC));
 }
 
 INT_PTR CSettings::OnMeasureFontItem(HWND hWnd2, UINT messg, WPARAM wParam, LPARAM lParam)
@@ -2364,8 +2367,8 @@ INT_PTR CSettings::OnDrawFontItem(HWND hWnd2, UINT messg, WPARAM wParam, LPARAM 
 
 		if (!(pItem->itemState & ODS_SELECTED))
 		{
-			crText = GetSysColor(COLOR_WINDOWTEXT);
-			crBack = GetSysColor(COLOR_WINDOW);
+			crText = global::g_darkModeEnabled ? DarkMode::Text : GetSysColor(COLOR_WINDOWTEXT);
+			crBack = global::g_darkModeEnabled ? DarkMode::Control : GetSysColor(COLOR_WINDOW);
 		}
 		else
 		{
