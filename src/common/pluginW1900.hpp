@@ -2576,6 +2576,7 @@ struct ConfigureInfo
 extern "C"
 {
 #endif
+#ifndef CONEMU_INTERNAL_PLUGIN_EXPORTS
 // Exported Functions
 
 	HANDLE WINAPI AnalyseW(const struct AnalyseInfo *Info);
@@ -2614,6 +2615,7 @@ extern "C"
 	int    WINAPI SetFindListW(const struct SetFindListInfo *Info);
 	void   WINAPI SetStartupInfoW(const struct PluginStartupInfo *Info);
 
+#endif
 #ifdef __cplusplus
 };
 #endif

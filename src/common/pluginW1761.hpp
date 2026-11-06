@@ -2129,6 +2129,7 @@ struct RegExpSearch
 extern "C"
 {
 #endif
+#ifndef CONEMU_INTERNAL_PLUGIN_EXPORTS
 // Exported Functions
 
 	void   WINAPI ClosePluginW(HANDLE hPlugin);
@@ -2160,6 +2161,7 @@ extern "C"
 	int    WINAPI SetFindListW(HANDLE hPlugin,const struct PluginPanelItem *PanelItem,int ItemsNumber);
 	void   WINAPI SetStartupInfoW(void *Info);
 
+#endif
 #ifdef __cplusplus
 };
 #endif
