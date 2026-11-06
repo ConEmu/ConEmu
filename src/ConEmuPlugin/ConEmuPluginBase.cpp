@@ -4058,7 +4058,9 @@ bool CPluginBase::ProcessCommand(DWORD nCmd, BOOL bReqMainThread, LPVOID pComman
 		}
 		// конец семафора
 
-		if (nCmd == CMD_LEFTCLKSYNC || nCmd == CMD_CLOSEQSEARCH)
+		// The console input hook signals ghConsoleInputEmpty. Without it,
+		// waiting here only delays the drag request.
+		if ((nCmd == CMD_LEFTCLKSYNC && ghHooksModule) || nCmd == CMD_CLOSEQSEARCH)
 		{
 			ResetEvent(ghConsoleInputEmpty);
 			gbWaitConsoleInputEmpty = TRUE;
