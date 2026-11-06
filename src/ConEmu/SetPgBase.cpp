@@ -147,6 +147,8 @@ INT_PTR CSetPgBase::OnCtlColorStatic(HWND hDlg, HDC hdc, HWND hCtrl, WORD nCtrlI
 		if (!(nStyle & SS_NOTIFY))
 			SetWindowLong(hCtrl, GWL_STYLE, nStyle|SS_NOTIFY);
 		// And the colors
+		if (const auto brush = CSettings::SettingsThemeBrush(WM_CTLCOLORSTATIC, hdc, hCtrl, true))
+			return brush;
 		SetTextColor(hdc, GetSysColor(COLOR_HOTLIGHT));
 		SetBkMode(hdc, TRANSPARENT);
 		HBRUSH hBrush = GetSysColorBrush(COLOR_3DFACE);
@@ -279,6 +281,8 @@ INT_PTR CSetPgBase::pageOpProc(HWND hDlg, UINT messg, WPARAM wParam, LPARAM lPar
 		}
 
 		pObj->OnPostLocalize(hDlg);
+		if (bInitial)
+			CSettings::ApplySettingsTheme(hDlg);
 
 	}
 	else if ((messg == WM_HELP) || (messg == HELP_WM_HELP))
@@ -377,7 +381,18 @@ INT_PTR CSetPgBase::pageOpProc(HWND hDlg, UINT messg, WPARAM wParam, LPARAM lPar
 			return gpSetCls->OnDrawFontItem(hDlg, messg, wParam, lParam);
 
 		case WM_CTLCOLORSTATIC:
-			return pObj->OnCtlColorStatic(hDlg, (HDC)wParam, (HWND)lParam, GetDlgCtrlID((HWND)lParam));
+		{
+			const auto dc = reinterpret_cast<HDC>(wParam);
+			const auto control = reinterpret_cast<HWND>(lParam);
+			if (const auto brush = pObj->OnCtlColorStatic(hDlg, dc, control, GetDlgCtrlID(control)))
+				return brush;
+			return CSettings::SettingsThemeBrush(messg, dc, control);
+		}
+		case WM_CTLCOLORDLG:
+		case WM_CTLCOLOREDIT:
+		case WM_CTLCOLORLISTBOX:
+		case WM_CTLCOLORBTN:
+			return CSettings::SettingsThemeBrush(messg, reinterpret_cast<HDC>(wParam), reinterpret_cast<HWND>(lParam));
 
 		case WM_SETCURSOR:
 			return pObj->OnSetCursor(hDlg, (HWND)wParam, GetDlgCtrlID((HWND)wParam), LOWORD(lParam), HIWORD(lParam));
