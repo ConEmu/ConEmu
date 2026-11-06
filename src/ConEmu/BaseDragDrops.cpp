@@ -260,17 +260,11 @@ HRESULT __stdcall CDropSource::GiveFeedback(DWORD dwEffect)
 				hCur = mh_CurLink;
 			}
 		}
-		else
-		{
-			hCur = LoadCursor(nullptr, IDC_NO);
-		}
 	}
 
 	gpConEmu->SetDragCursor(hCur);
-	//if (hCur) {
-	//SetCursor(hCur);
-	hr = S_OK;
-	//}
+	if (hCur)
+		hr = S_OK;
 
 	if (mp_Callback)
 		mp_Callback->DragFeedBack(dwEffect);

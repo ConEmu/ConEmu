@@ -21,7 +21,12 @@ RES_NAME2 = ConEmuMinGW
 include ../makefile_gcc_inc
 
 USERLIBS += -lversion -lshlwapi -loleaut32 -lnetapi32 -lwinmm
-USERLIBS += -ladvapi32 -lshell32 -lgdi32 -lcomdlg32 -lole32 -luuid -lcomctl32 mstask.lib
+USERLIBS += -ladvapi32 -lshell32 -lgdi32 -lcomdlg32 -lole32 -luuid -lcomctl32
+ifeq ($(ARM64),1)
+USERLIBS += -lmstask
+else
+USERLIBS += mstask.lib
+endif
 
 SRCS = \
 		../common/CEStr.cpp          \
@@ -205,5 +210,9 @@ SRCS = \
 		VConText.cpp       \
 		VirtualConsole.cpp \
 		WinObjBase.cpp
+
+ifeq ($(ARM64),1)
+SRCS += ../common/CmdArg.cpp ../common/ConEmuCheckEx.cpp ErrorInfo.cpp GlobalHotkeys.cpp TempFile.cpp
+endif
 
 include ../makefile_gcc_target

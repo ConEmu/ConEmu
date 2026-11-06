@@ -938,12 +938,17 @@ bool CConEmuMain::CheckRequiredFiles()
 		bool isRequired;
 		wchar_t name[16];
 	} requiredFiles[] = {
+#if defined(__aarch64__) || defined(_M_ARM64)
+        {64, true, ConEmuC_64_EXE},
+        {64, true, ConEmuCD_64_DLL},
+#else
 		{32, true, ConEmuC_32_EXE},
 		{64, true, ConEmuC_64_EXE},
 		{32, true, ConEmuCD_32_DLL},
 		{64, true, ConEmuCD_64_DLL},
 		{32, gpSet->isUseInjects, ConEmuHk_32_DLL},
 		{64, gpSet->isUseInjects, ConEmuHk_64_DLL},
+#endif
 	};
 
 	std::wstring szRequired, szRecommended;
@@ -1022,7 +1027,11 @@ bool CConEmuMain::CheckRequiredFiles()
 
 bool CConEmuMain::CanUseInjects() const
 {
+#if defined(__aarch64__) || defined(_M_ARM64)
+	return false;
+#else
 	return !mb_DontUseInjects;
+#endif
 }
 
 bool CConEmuMain::CheckBaseDir() const
