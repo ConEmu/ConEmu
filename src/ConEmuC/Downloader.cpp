@@ -766,7 +766,7 @@ BOOL CDownloader::DownloadFile(LPCWSTR asSource, LPCWSTR asTarget, DWORD& crc, D
 	mb_InetMode = !IsLocalFile(asSource);
 	const bool lbTargetLocal = IsLocalFile(asTarget);
 	_ASSERTE(lbTargetLocal);
-	UNREFERENCED_PARAMETER(lbTargetLocal);
+	(void)lbTargetLocal;
 	const DWORD cchDataMax = 64 * 1024;
 	BYTE* ptrData = static_cast<BYTE*>(malloc(cchDataMax));
 	#if 0
