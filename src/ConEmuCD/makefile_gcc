@@ -12,8 +12,13 @@
 NAME = ConEmuCD
 EXT = dll
 RELEASESUBDIR = /ConEmu
+ifeq ($(ARM64),1)
+DEF = export.def
+USERCPP = -D DLL_CONEMUCD_EXPORTS
+else
 DEF = export.gcc.def
 USERCPP =
+endif
 LNKPLATFORM = -mconsole
 BASEADDRESS =
 
@@ -89,5 +94,9 @@ SRCS = \
 		SrvPipes.cpp       \
 		StartEnv.cpp       \
 		UnicodeTest.cpp
+
+ifeq ($(ARM64),1)
+SRCS += ../common/MEvent.cpp ../common/CmdArg.cpp ../common/WRegistry.cpp ConsoleArgs.cpp ConsoleState.cpp DumpOnException.cpp RunMode.cpp StdCon.cpp WorkerBase.cpp
+endif
 
 include ../makefile_gcc_target

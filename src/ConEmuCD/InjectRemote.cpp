@@ -386,6 +386,11 @@ static bool EnumerateModules(const DWORD nRemotePID, const wchar_t* szKernelName
 // Здесь вызывается CreateRemoteThread
 CINFILTRATE_EXIT_CODES InjectRemote(DWORD nRemotePID, bool abDefTermOnly /*= false */, LPDWORD pnErrCode /*= nullptr*/)
 {
+#if defined(__aarch64__) || defined(_M_ARM64)
+	if (pnErrCode) *pnErrCode = ERROR_NOT_SUPPORTED;
+	SetLastError(ERROR_NOT_SUPPORTED);
+	return CIR_GeneralError;
+#else
 	CINFILTRATE_EXIT_CODES iRc = CIR_GeneralError/*-1*/;
 	DWORD nErrCode = 0;
 	const bool lbWin64 = WIN3264TEST((IsWindows64()!=0),true);
@@ -695,4 +700,5 @@ wrap:
 	std::ignore = lbWin64;
 	std::ignore = nWrapperWait;
 	return iRc;
+#endif
 }

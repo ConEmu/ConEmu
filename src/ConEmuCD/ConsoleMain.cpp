@@ -1995,7 +1995,7 @@ int __stdcall ConsoleMain2(const ConsoleMainMode anWorkMode)
 }
 
 
-int WINAPI LogHooksFunction(const wchar_t* str)
+extern "C" int WINAPI LogHooksFunction(const wchar_t* str)
 {
 	if (!gpLogSize) return -1;
 	if (!str || !*str) return 0;
@@ -2316,7 +2316,7 @@ CEStr ParseConEmuSubst(LPCWSTR asCmd)
 		asCmd = pszCmdCopy;
 	}
 
-	CEStr pszExpand = ExpandEnvStr(pszCmdCopy ? pszCmdCopy : asCmd);
+	CEStr pszExpand = ExpandEnvStr(pszCmdCopy ? pszCmdCopy.c_str() : asCmd);
 	return pszExpand;
 }
 
