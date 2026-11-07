@@ -18,6 +18,12 @@ LNKPLATFORM = -mwindows
 BASEADDRESS =
 RES_NAME2 = ConEmuMinGW
 
+ifeq ($(ARM64),1)
+# The checked-in .res predates the current application icon IDs.
+RES2_INPUT = $(RES_NAME2).rc
+RES2_DEPS = Externals.rc2 resource.h $(wildcard *.ico *.cur *.bmp graphics/*.bmp)
+endif
+
 include ../makefile_gcc_inc
 
 USERLIBS += -lversion -lshlwapi -loleaut32 -lnetapi32 -lwinmm

@@ -82,7 +82,8 @@ $(RES): $(RC_NAME)
 	@$(MKDIR) -p $(@D)
 	@$(WINDRES) $(RCFLAGS) -i $< -o $@
 
-$(RES2): $(RES_NAME2).res
+RES2_INPUT ?= $(RES_NAME2).res
+$(RES2): $(RES2_INPUT) $(RES2_DEPS)
 	@echo compiling resources $<
 	@$(MKDIR) -p $(@D)
 	@$(WINDRES) $(RCFLAGS) -i $< -o $@
