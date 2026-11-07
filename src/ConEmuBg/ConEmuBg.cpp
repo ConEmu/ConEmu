@@ -3029,7 +3029,7 @@ LPCWSTR GetMsgW(int aiMsg)
 }
 
 
-HANDLE WINAPI OpenW(const void* Info)
+extern "C" HANDLE WINAPI OpenW(const void* Info)
 {
 	HANDLE hResult = NULL;
 

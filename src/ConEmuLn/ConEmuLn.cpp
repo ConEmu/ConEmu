@@ -571,7 +571,7 @@ HANDLE OpenPluginWcmn(int OpenFrom,INT_PTR Item)
 	return hResult;
 }
 
-HANDLE WINAPI OpenW(const void *Info)
+extern "C" HANDLE WINAPI OpenW(const void *Info)
 {
 	HANDLE hResult = NULL;
 

@@ -41,3 +41,5 @@ set -- $(sed -nE 's/^[[:space:]]*([^[:space:]]+\.cpp)[[:space:]]*\\?[[:space:]]*
 
 cp "$root/Release/ConEmu/License.txt" "$root/Release/ConEmu/ConEmu.l10n" "$package/ConEmu/"
 cp "$root"/Release/plugins/ConEmu/ConEmuPlugin_*.lng "$plugin/"
+
+sh "$root/build-arm64-extra-plugins.sh" "$out"

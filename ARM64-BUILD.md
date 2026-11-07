@@ -10,7 +10,9 @@ export PATH="/path/to/llvm-mingw/bin:$PATH"
 sh build-arm64.sh
 ```
 
-The script builds the GUI, console executable, server DLL, and the Far plugin.
+The script builds the GUI, console executable, server DLL, and the Far plugins.
+The package includes ConEmuBg, ConEmuLn, and ConEmuTh with its GDI+, ICO, and
+PE thumbnail modules. Keep their subdirectories and resource files together.
 The files to install are under `Release-arm64/package`. Set `BUILD_DIR` to an
 absolute path to change the build directory or `JOBS` to change the number of
 parallel Make jobs.
