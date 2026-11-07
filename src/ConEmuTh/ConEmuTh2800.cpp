@@ -200,6 +200,23 @@ HANDLE OpenW2800(const void* aInfo)
 // Common
 int ProcessSynchroEventCommon(int Event, void *Param);
 
+#if defined(_M_ARM64) || defined(__aarch64__)
+extern "C" __declspec(dllexport) intptr_t WINAPI ProcessConsoleInputW(struct ProcessConsoleInputInfo* info)
+{
+	if (info)
+	{
+		const auto& input = info->Rec;
+		if ((input.EventType == KEY_EVENT && input.Event.KeyEvent.bKeyDown)
+			|| (input.EventType == MOUSE_EVENT && input.Event.MouseEvent.dwEventFlags != MOUSE_MOVED))
+		{
+			// Queue the refresh so Far can apply the input before we read the panel.
+			RefreshPanelViewsAfterInput();
+		}
+	}
+	return 0;
+}
+#endif
+
 // Far3 export
 INT_PTR WINAPI ProcessSynchroEventW3(void* p)
 {

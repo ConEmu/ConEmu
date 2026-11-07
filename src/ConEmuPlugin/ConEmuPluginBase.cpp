@@ -1233,7 +1233,13 @@ void CPluginBase::ProcessEditorInputInternal(const INPUT_RECORD& Rec)
 int CPluginBase::ProcessEditorViewerEvent(int EditorEvent, int ViewerEvent)
 {
 	if (EditorEvent == ee_Redraw)
+	{
+#if defined(_M_ARM64) || defined(__aarch64__)
+		if (gpBgPlugin)
+			gpBgPlugin->OnMainThreadActivated(EditorEvent, ViewerEvent);
+#endif
 		return 0;
+	}
 
 	if (!gbRequestUpdateTabs)
 	{
@@ -1261,6 +1267,15 @@ int CPluginBase::ProcessEditorViewerEvent(int EditorEvent, int ViewerEvent)
 
 	if (gpBgPlugin && (EditorEvent != ee_Redraw))
 	{
+#if defined(_M_ARM64) || defined(__aarch64__)
+		if (EditorEvent == ee_Close || ViewerEvent == ve_Close)
+		{
+			// Far still reports the closing window in this callback.
+			gpBgPlugin->SetForceCheck();
+			ExecuteSynchroApi();
+			return 0;
+		}
+#endif
 		gpBgPlugin->OnMainThreadActivated(EditorEvent, ViewerEvent);
 	}
 

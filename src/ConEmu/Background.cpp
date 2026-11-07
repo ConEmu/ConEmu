@@ -1014,6 +1014,7 @@ bool CBackground::PrepareBackground(CVirtualConsole* pVCon, HDC&/*OUT*/ phBgDc, 
 			}
 		}
 
+#if !defined(_M_ARM64) && !defined(__aarch64__)
 		// Check if the bitmap was prepared for the current Far state
 		if ((mp_BkImgData && pVCon)
 			// Don't use isFilePanel here because it is `false` when any dialog is active in Panels
@@ -1027,6 +1028,7 @@ bool CBackground::PrepareBackground(CVirtualConsole* pVCon, HDC&/*OUT*/ phBgDc, 
 			pbgBmpSize = MakeCoord(0, 0);
 			goto wrap;
 		}
+#endif
 	}
 
 	if (bSucceeded)

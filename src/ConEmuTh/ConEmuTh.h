@@ -417,6 +417,9 @@ typedef struct
 extern bool gbSynchoRedrawPanelRequested;
 extern ConEmuThSynchroArg* gpLastSynchroArg;
 void ExecuteInMainThread(ConEmuThSynchroArg* pCmd);
+#if defined(_M_ARM64) || defined(__aarch64__)
+void RefreshPanelViewsAfterInput();
+#endif
 void FUNC_X(ExecuteInMainThreadW)(ConEmuThSynchroArg* pCmd);
 void FUNC_Y1(ExecuteInMainThreadW)(ConEmuThSynchroArg* pCmd);
 void FUNC_Y2(ExecuteInMainThreadW)(ConEmuThSynchroArg* pCmd);
@@ -429,6 +432,7 @@ void FUNC_Y1(SetCurrentPanelItemW)(BOOL bLeftPanel, INT_PTR anTopItem, INT_PTR a
 void FUNC_Y2(SetCurrentPanelItemW)(BOOL bLeftPanel, INT_PTR anTopItem, INT_PTR anCurItem);
 
 #define SYNCHRO_RELOAD_PANELS ((ConEmuThSynchroArg*)2)
+#define SYNCHRO_RESTORE_PANELS ((ConEmuThSynchroArg*)3)
 
 
 // ConEmu.dll
