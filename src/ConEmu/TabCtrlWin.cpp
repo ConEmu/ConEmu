@@ -113,7 +113,7 @@ static void PaintConsoleTabs(HWND tabs, HDC dc)
 		ImageList_GetIconSize(icons, &iconWidth, &iconHeight);
 	const bool highContrast = CDwmHelper::IsHighContrast();
 	const auto alternate = highContrast ? GetSysColor(COLOR_WINDOW)
-		: CDwmHelper::BlendColors(colors.inactive, colors.text, 12);
+		: CDwmHelper::BlendColors(colors.inactive, colors.text, 7);
 	const auto alternateText = highContrast ? GetSysColor(COLOR_WINDOWTEXT)
 		: ContrastingText(alternate);
 	const int selected = TabCtrl_GetCurSel(tabs);
