@@ -189,14 +189,11 @@ static LRESULT CALLBACK DialogIconProc(HWND control, UINT message, WPARAM wParam
 	return DefSubclassProc(control, message, wParam, lParam);
 }
 
-static BOOL CALLBACK ApplyDialogControlTheme(HWND control, LPARAM)
+static BOOL CALLBACK ApplyDialogIconTheme(HWND control, LPARAM)
 {
 	wchar_t className[16] = {};
 	GetClassNameW(control, className, countof(className));
-	// The newer button styles include dark radio-button and group-box labels.
-	if (gOSVer.dwBuildNumber >= 26300 && lstrcmpiW(className, L"Button") == 0)
-		gpConEmu->SetWindowTheme(control, L"DarkMode_DarkTheme", nullptr);
-	else if (lstrcmpiW(className, L"Static") == 0
+	if (lstrcmpiW(className, L"Static") == 0
 		&& (GetWindowLongPtr(control, GWL_STYLE) & SS_TYPEMASK) == SS_ICON)
 		SetWindowSubclass(control, DialogIconProc, 0, 0);
 	return TRUE;
@@ -228,7 +225,7 @@ INT_PTR /*CALLBACK*/ CDynDialog::DynDialogBox(HWND hwndDlg, UINT uMsg, WPARAM wP
 
 	// Settings pages already handle their own colors, including palette previews.
 	if (pDlg && gpConEmu && pDlg->mn_DlgId != IDD_SETTINGS
-		&& !(GetWindowLongPtr(hwndDlg, GWL_STYLE) & WS_CHILD))
+		&& (pDlg->mn_DlgId == IDD_SPG_APPDISTINCT2 || !(GetWindowLongPtr(hwndDlg, GWL_STYLE) & WS_CHILD)))
 	{
 		switch (uMsg)
 		{
@@ -236,8 +233,10 @@ INT_PTR /*CALLBACK*/ CDynDialog::DynDialogBox(HWND hwndDlg, UINT uMsg, WPARAM wP
 			if (IsWindow(hwndDlg) && CDwmHelper::IsWindowsDarkMode())
 			{
 				CSettings::ApplySettingsTheme(hwndDlg);
-				gpConEmu->EnableDarkCaption(hwndDlg);
-				EnumChildWindows(hwndDlg, ApplyDialogControlTheme, 0);
+				if (pDlg->mn_DlgId == IDD_SPG_APPDISTINCT2)
+					gpConEmu->SetWindowTheme(hwndDlg,
+						gOSVer.dwBuildNumber >= 26300 ? L"DarkMode_DarkTheme" : L"DarkMode_Explorer", nullptr);
+				EnumChildWindows(hwndDlg, ApplyDialogIconTheme, 0);
 			}
 			break;
 		case WM_CTLCOLORDLG:
@@ -245,6 +244,7 @@ INT_PTR /*CALLBACK*/ CDynDialog::DynDialogBox(HWND hwndDlg, UINT uMsg, WPARAM wP
 		case WM_CTLCOLOREDIT:
 		case WM_CTLCOLORLISTBOX:
 		case WM_CTLCOLORBTN:
+		case WM_CTLCOLORSCROLLBAR:
 			if (!iRc)
 				iRc = CSettings::SettingsThemeBrush(uMsg, reinterpret_cast<HDC>(wParam), reinterpret_cast<HWND>(lParam));
 			break;

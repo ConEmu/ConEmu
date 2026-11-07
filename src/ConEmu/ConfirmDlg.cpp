@@ -86,6 +86,20 @@ static MModule gComCtl32;
 typedef HRESULT (WINAPI* TaskDialogIndirect_t)(const TASKDIALOGCONFIG *pTaskConfig, int *pnButton, int *pnRadioButton, BOOL *pfVerificationFlagChecked);
 static TaskDialogIndirect_t TaskDialogIndirect_f = nullptr; //(TaskDialogIndirect_t)(hDll?GetProcAddress(hDll, "TaskDialogIndirect"):nullptr);
 
+struct TaskDialogCaptionContext
+{
+	PFTASKDIALOGCALLBACK callback;
+	LONG_PTR data;
+};
+
+static HRESULT CALLBACK TaskDialogCaptionCallback(HWND hwnd, UINT notification, WPARAM wParam, LPARAM lParam, LONG_PTR data)
+{
+	const auto& context = *reinterpret_cast<const TaskDialogCaptionContext*>(data);
+	if (notification == TDN_CREATED)
+		gpConEmu->EnableDarkCaption(hwnd);
+	return context.callback(hwnd, notification, wParam, lParam, context.data);
+}
+
 HRESULT TaskDialog(TASKDIALOGCONFIG *pTaskConfig, int *pnButton, int *pnRadioButton, bool *pfVerificationFlagChecked)
 {
 	HRESULT hr = E_UNEXPECTED;
@@ -107,7 +121,14 @@ HRESULT TaskDialog(TASKDIALOGCONFIG *pTaskConfig, int *pnButton, int *pnRadioBut
 		else if (hClassIconSm)
 			ghDlgPendingFrom = GetForegroundWindow();
 
-		hr = TaskDialogIndirect_f(pTaskConfig, pnButton, pnRadioButton, &bCheckBox);
+		TASKDIALOGCONFIG config = *pTaskConfig;
+		const TaskDialogCaptionContext context{config.pfCallback, config.lpCallbackData};
+		if (gpConEmu && CDwmHelper::IsWindowsDarkMode())
+		{
+			config.pfCallback = TaskDialogCaptionCallback;
+			config.lpCallbackData = reinterpret_cast<LONG_PTR>(&context);
+		}
+		hr = TaskDialogIndirect_f(&config, pnButton, pnRadioButton, &bCheckBox);
 
 		ghDlgPendingFrom = nullptr;
 	}

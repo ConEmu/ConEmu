@@ -2058,9 +2058,25 @@ static BOOL CALLBACK ApplySettingsThemeToControl(HWND control, LPARAM darkParam)
 	const bool tree = _wcsicmp(cls, WC_TREEVIEWW) == 0;
 	const bool list = _wcsicmp(cls, WC_LISTVIEWW) == 0;
 	const bool combo = _wcsicmp(cls, L"ComboBox") == 0 || _wcsicmp(cls, L"Edit") == 0;
-	if (tree || list || combo || _wcsicmp(cls, L"Button") == 0
+	const bool button = _wcsicmp(cls, L"Button") == 0;
+	const bool hotkey = _wcsicmp(cls, HOTKEY_CLASSW) == 0;
+	const bool tabs = _wcsicmp(cls, WC_TABCONTROLW) == 0;
+	const bool listBox = _wcsicmp(cls, L"ListBox") == 0;
+	const bool scrollingEdit = _wcsicmp(cls, L"Edit") == 0
+		&& (GetWindowLongPtr(control, GWL_STYLE) & (WS_HSCROLL | WS_VSCROLL));
+	const bool modernTheme = gOSVer.dwBuildNumber >= 26300;
+	if (tree || list || combo || button || hotkey || listBox || tabs
 		|| _wcsicmp(cls, L"ScrollBar") == 0 || _wcsicmp(cls, TRACKBAR_CLASSW) == 0)
-		gpConEmu->SetWindowTheme(control, useDark ? (combo ? L"DarkMode_CFD" : L"DarkMode_Explorer") : nullptr, nullptr);
+	{
+		LPCWSTR theme = nullptr;
+		if (useDark)
+		{
+			theme = combo ? L"DarkMode_CFD" : L"DarkMode_Explorer";
+			if (modernTheme && (button || hotkey || listBox || scrollingEdit || tabs))
+				theme = L"DarkMode_DarkTheme";
+		}
+		gpConEmu->SetWindowTheme(control, theme, nullptr);
+	}
 
 	const auto bg = useDark ? SettingsBackground(true) : GetSysColor(COLOR_WINDOW);
 	const auto fg = useDark ? RGB(240, 240, 240) : GetSysColor(COLOR_WINDOWTEXT);
@@ -2076,7 +2092,8 @@ static BOOL CALLBACK ApplySettingsThemeToControl(HWND control, LPARAM darkParam)
 		ListView_SetTextBkColor(control, bg);
 		ListView_SetTextColor(control, fg);
 		if (const auto header = ListView_GetHeader(control))
-			gpConEmu->SetWindowTheme(header, useDark ? L"DarkMode_ItemsView" : nullptr, nullptr);
+			gpConEmu->SetWindowTheme(header, useDark
+				? (modernTheme ? L"DarkMode_DarkTheme" : L"DarkMode_ItemsView") : nullptr, nullptr);
 	}
 	return TRUE;
 }
@@ -2085,6 +2102,8 @@ void CSettings::ApplySettingsTheme(HWND dialog)
 {
 	gpConEmu->ApplyPopupMenuTheme(dialog);
 	const bool dark = CDwmHelper::IsWindowsDarkMode();
+	if (dark && (GetWindowLongPtr(dialog, GWL_STYLE) & (WS_CHILD | WS_CAPTION)) == WS_CAPTION)
+		gpConEmu->EnableDarkCaption(dialog);
 	EnumChildWindows(dialog, ApplySettingsThemeToControl, dark);
 	RedrawWindow(dialog, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
 }
