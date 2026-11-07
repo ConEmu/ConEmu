@@ -990,5 +990,10 @@ void CPluginBackground::MonitorBackground()
 		// Но проверить все параметры фара тоже нужно
 		mn_ReqActions |= ra_CheckPanelFolders;
 		gbNeedBgActivate = TRUE;
+#if defined(_M_ARM64) || defined(__aarch64__)
+		// Without the input hook, ask Far to run the pending panel check on its main thread.
+		if (gnCurrentWindowType == WTYPE_PANELS && gnSynchroCount == 0)
+			Plugin()->ExecuteSynchro();
+#endif
 	}
 }

@@ -43,7 +43,7 @@ public:
 	virtual ~CBackground();
 
 	bool CreateField(int anWidth, int anHeight);
-	bool FillBackground(const BITMAPFILEHEADER* apBkImgData, LONG X, LONG Y, LONG Width, LONG Height, BackgroundOp Operation, bool abFade);
+	bool FillBackground(const BITMAPFILEHEADER* apBkImgData, LONG X, LONG Y, LONG Width, LONG Height, BackgroundOp Operation, bool abFade, bool preserveColors = false);
 
 	SetBackgroundResult SetPluginBackgroundImageData(CESERVER_REQ_SETBACKGROUND* apImgData, bool&/*OUT*/ bUpdate);
 	bool HasPluginBackgroundImage(LONG* pnBgWidth, LONG* pnBgHeight);
