@@ -1,4 +1,4 @@
-﻿
+
 /*
 Copyright (c) 2013-present Maximus5
 All rights reserved.
@@ -111,6 +111,11 @@ static void PaintConsoleTabs(HWND tabs, HDC dc)
 	int iconWidth = 0, iconHeight = 0;
 	if (icons)
 		ImageList_GetIconSize(icons, &iconWidth, &iconHeight);
+	const bool highContrast = CDwmHelper::IsHighContrast();
+	const auto alternate = highContrast ? GetSysColor(COLOR_WINDOW)
+		: CDwmHelper::BlendColors(colors.inactive, colors.text, 12);
+	const auto alternateText = highContrast ? GetSysColor(COLOR_WINDOWTEXT)
+		: ContrastingText(alternate);
 	const int selected = TabCtrl_GetCurSel(tabs);
 	const int count = TabCtrl_GetItemCount(tabs);
 	for (int i = 0; i < count; ++i)
@@ -132,13 +137,17 @@ static void PaintConsoleTabs(HWND tabs, HDC dc)
 		const bool isSelected = (i == selected);
 		const int height = item.bottom - item.top;
 		--item.right;
-		SetDCBrushColor(dc, isSelected ? colors.active : colors.inactive);
+		const auto background = isSelected ? colors.active
+			: (i % 2 == 0 ? colors.inactive : alternate);
+		const auto foreground = isSelected ? colors.activeText
+			: (i % 2 == 0 ? colors.text : alternateText);
+		SetDCBrushColor(dc, background);
 		FillRect(dc, &item, brush);
 		if (isSelected || (info.dwState & TCIS_HIGHLIGHTED))
 		{
 			RECT mark = item;
 			mark.top = mark.bottom - std::max(2, height / 9);
-			SetDCBrushColor(dc, isSelected ? colors.activeText : colors.text);
+			SetDCBrushColor(dc, foreground);
 			FillRect(dc, &mark, brush);
 		}
 
@@ -150,7 +159,7 @@ static void PaintConsoleTabs(HWND tabs, HDC dc)
 			ImageList_Draw(icons, info.iImage, dc, item.left, item.top + (height - iconHeight) / 2, ILD_TRANSPARENT);
 			item.left += iconWidth + padding;
 		}
-		SetTextColor(dc, isSelected ? colors.activeText : colors.text);
+		SetTextColor(dc, foreground);
 		if (item.right > item.left)
 			DrawTextW(dc, label, -1, &item, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX);
 	}
