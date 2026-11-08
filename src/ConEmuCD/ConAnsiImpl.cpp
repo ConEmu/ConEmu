@@ -988,7 +988,7 @@ bool SrvAnsiImpl::ReportString(LPCWSTR asRet)
 	LPCWSTR pc = asRet;
 	for (int i = 0; i < nLen; i++, p++, pc++)
 	{
-		const char ch = (*pc == 0x1B || *pc >= 0x20) ? *pc : L' ';
+		const wchar_t ch = (*pc == 0x1B || (*pc >= 0x20 && *pc != 0x7F)) ? *pc : L' ';
 		p->EventType = KEY_EVENT;
 		p->Event.KeyEvent.bKeyDown = TRUE;
 		p->Event.KeyEvent.wRepeatCount = 1;
@@ -1008,17 +1008,8 @@ bool SrvAnsiImpl::ReportString(LPCWSTR asRet)
 
 void SrvAnsiImpl::ReportConsoleTitle()
 {
-	wchar_t sTitle[MAX_PATH*2+6] = L"\x1B]l";
-	wchar_t* p = sTitle+3;
-	_ASSERTEX(lstrlen(sTitle)==3);
-
-	DWORD nTitle = GetConsoleTitle(sTitle+3, MAX_PATH*2);
-	p = sTitle + 3 + std::min<DWORD>(nTitle, MAX_PATH*2);
-	*(p++) = L'\x1B';
-	*(p++) = L'\\';
-	*(p++) = 0;
-
-	ReportString(sTitle);
+	// Titles are untrusted output. Never echo them into input, even after
+	// filtering (CVE-2022-46387 / CVE-2023-39150). Applies to ConPTY too.
 }
 
 void SrvAnsiImpl::ReportTerminalPixelSize()

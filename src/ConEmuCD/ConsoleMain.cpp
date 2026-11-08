@@ -2407,8 +2407,19 @@ bool IsMainServerPID(DWORD nPID)
 	return false;
 }
 
+static bool HasLostGuiOwner()
+{
+	if (!gState.conemuPid_ || gState.bWasDetached_) return false;
+	DWORD currentPID = 0;
+	if (gState.conemuWnd_) GetWindowThreadProcessId(gState.conemuWnd_, &currentPID);
+	return currentPID != gState.conemuPid_;
+}
+
 int ExitWaitForKey(DWORD vkKeys, LPCWSTR asConfirm, BOOL abNewLine, BOOL abDontShowConsole, DWORD anMaxTimeout /*= 0*/)
 {
+	// A prompt owned by a dead GUI has no reader. Detached/standalone
+	// consoles keep their existing confirmation behavior.
+	if (HasLostGuiOwner()) return -1;
 	gState.inExitWaitForKey_ = TRUE;
 
 	int nKeyPressed = -1;
@@ -2492,7 +2503,7 @@ int ExitWaitForKey(DWORD vkKeys, LPCWSTR asConfirm, BOOL abNewLine, BOOL abDontS
 
 	while (TRUE)
 	{
-		if (gbStopExitWaitForKey)
+		if (gbStopExitWaitForKey || HasLostGuiOwner())
 		{
 			// Был вызван HandlerRoutine(CLOSE)
 			break;

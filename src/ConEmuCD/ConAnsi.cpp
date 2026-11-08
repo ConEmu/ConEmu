@@ -40,6 +40,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "../common/WConsoleInfo.h"
 #include "../common/WErrGuard.h"
 #include "../common/ConPtyData.h"
+#include "../common/ConPtyInput.h"
 #include <set>
 #include "../ConEmu/version.h"
 
@@ -993,6 +994,7 @@ void SrvAnsi::SetConPtyInput(HANDLE input)
 	{
 		std::lock_guard<std::mutex> lock(m_InputMutex);
 		m_ConPtyInput = input;
+		m_ConPtyInputError = ERROR_SUCCESS;
 	}
 	if (input)
 	{
@@ -1008,15 +1010,10 @@ void SrvAnsi::SetConPtyInput(HANDLE input)
 bool SrvAnsi::WriteTerminalInput(const char* data, DWORD size)
 {
 	std::lock_guard<std::mutex> lock(m_InputMutex);
-	while (size)
-	{
-		DWORD written = 0;
-		if (!m_ConPtyInput || !WriteFile(m_ConPtyInput, data, size, &written, nullptr) || !written)
-			return false;
-		data += written;
-		size -= written;
-	}
-	return true;
+	if (!m_ConPtyInput.load() || m_ConPtyInputError.load()) return false;
+	if (WriteConPtyInput(m_ConPtyInput.load(), data, size)) return true;
+	m_ConPtyInputError = GetLastError() ? GetLastError() : ERROR_WRITE_FAULT;
+	return false;
 }
 
 bool SrvAnsi::ReportTerminalString(const wchar_t* text)

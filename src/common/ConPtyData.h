@@ -48,6 +48,15 @@ inline bool IsConPtyUriAllowed(const std::wstring& uri)
 	if (slash == std::wstring::npos)
 		return false;
 	const auto host = uri.substr(7, slash - 7);
+	// An empty host followed by // or encoded separators can still become a UNC
+	// path in ShellExecute. Only allow canonical absolute local drive paths.
+	if (uri.size() < slash + 4 || !((uri[slash + 1] >= L'A' && uri[slash + 1] <= L'Z')
+		|| (uri[slash + 1] >= L'a' && uri[slash + 1] <= L'z'))
+		|| uri[slash + 2] != L':' || uri[slash + 3] != L'/' || uri.find(L'\\') != std::wstring::npos)
+		return false;
+	for (size_t i = slash; i + 2 < uri.size(); ++i)
+		if (uri[i] == L'%' && ((uri[i + 1] == L'2' && (uri[i + 2] == L'f' || uri[i + 2] == L'F'))
+			|| (uri[i + 1] == L'5' && (uri[i + 2] == L'c' || uri[i + 2] == L'C')))) return false;
 	wchar_t computer[MAX_COMPUTERNAME_LENGTH + 1];
 	DWORD length = sizeof(computer) / sizeof(computer[0]);
 	return host.empty() || _wcsicmp(host.c_str(), L"localhost") == 0

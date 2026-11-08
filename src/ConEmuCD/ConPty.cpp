@@ -2,6 +2,7 @@
 #include "../common/ConEmuCheck.h"
 #include "../common/ConsoleAnnotation.h"
 #include "../common/ConPtyData.h"
+#include "../common/ConPtyInput.h"
 #include "../common/WConsole.h"
 #include "ConsoleMain.h"
 #include "ConsoleState.h"
@@ -36,6 +37,7 @@ private:
 	HANDLE input_ = nullptr, output_ = nullptr;
 	HANDLE pty_ = nullptr, inputPipe_ = nullptr, outputPipe_ = nullptr;
 	HANDLE inputThread_ = nullptr, outputThread_ = nullptr, job_ = nullptr;
+	HANDLE guiOwner_ = nullptr, serverOwner_ = nullptr;
 	PROCESS_INFORMATION child_ = {};
 	ResizePty resizePty_ = nullptr;
 	ClosePty closePty_ = nullptr;
@@ -86,7 +88,7 @@ bool ConPtySession::Start(const wchar_t* command)
 		return false;
 
 	HANDLE readInput = nullptr, writeOutput = nullptr;
-	if (!CreatePipe(&readInput, &inputPipe_, nullptr, 0))
+	if (!CreateConPtyInputPipe(readInput, inputPipe_))
 		return false;
 	if (!CreatePipe(&outputPipe_, &writeOutput, nullptr, 0))
 	{
@@ -194,6 +196,18 @@ bool ConPtySession::CreateSharedData()
 {
 	CESERVER_CONSOLE_MAPPING_HDR mapping = {};
 	LoadSrvMapping(gState.realConWnd_, mapping);
+	DWORD guiPID = 0;
+	if (mapping.hConEmuRoot) GetWindowThreadProcessId(mapping.hConEmuRoot, &guiPID);
+	if (guiPID && guiPID != GetCurrentProcessId())
+	{
+		guiOwner_ = OpenProcess(SYNCHRONIZE, FALSE, guiPID);
+		if (!guiOwner_) return false;
+	}
+	if (mapping.nServerPID && mapping.nServerPID != GetCurrentProcessId())
+	{
+		serverOwner_ = OpenProcess(SYNCHRONIZE, FALSE, mapping.nServerPID);
+		if (!serverOwner_) return false;
+	}
 	const DWORD identity = mapping.hConEmuWndDc ? LODWORD(mapping.hConEmuWndDc) : LODWORD(gState.realConWnd_);
 	wchar_t name[128];
 	msprintf(name, countof(name), L"ConEmu_ConPTY_owner_%x", identity);
@@ -358,9 +372,10 @@ void ConPtySession::Close()
 		ansi_->SetConPtyInput(nullptr);
 		ansi_ = nullptr;
 	}
-	for (auto handle : {inputPipe_, outputPipe_, child_.hThread, child_.hProcess})
+	for (auto handle : {inputPipe_, outputPipe_, child_.hThread, child_.hProcess, guiOwner_, serverOwner_})
 		if (handle) CloseHandle(handle);
 	inputPipe_ = outputPipe_ = child_.hThread = child_.hProcess = nullptr;
+	guiOwner_ = serverOwner_ = nullptr;
 	if (shared_)
 	{
 		InterlockedExchange(reinterpret_cast<LONG*>(&shared_->annotation.locked), TRUE);
@@ -402,9 +417,28 @@ int ConPtySession::Run(const wchar_t* command)
 		return error ? error : ERROR_GEN_FAILURE;
 	}
 	HANDLE wait[] = {child_.hProcess, outputThread_};
-	DWORD result;
-	while ((result = WaitForMultipleObjects(countof(wait), wait, FALSE, 20)) == WAIT_TIMEOUT)
+	DWORD result, waitCount = countof(wait);
+	for (;;)
 	{
+		// Retain real process handles, not bare PIDs: owner death cancels the
+		// session and cannot accidentally target a reused process ID.
+		if ((guiOwner_ && WaitForSingleObject(guiOwner_, 0) == WAIT_OBJECT_0)
+			|| (serverOwner_ && WaitForSingleObject(serverOwner_, 0) == WAIT_OBJECT_0))
+		{
+			gbInShutdown = TRUE; // No exit-key prompt in an orphaned helper.
+			return ERROR_CANCELLED;
+		}
+		result = WaitForMultipleObjects(waitCount, wait, FALSE, 20);
+		if (result == WAIT_OBJECT_0) break;
+		if (result == WAIT_OBJECT_0 + 1 && waitCount == 2)
+		{
+			// EOF may precede the process signal. Preserve the child's real exit
+			// code instead of reporting a read fault and forcing an exit prompt.
+			if (outputError_) break;
+			waitCount = 1;
+		}
+		else if (result != WAIT_TIMEOUT) break;
+		if (ansi_->TerminalInputError()) return static_cast<int>(ansi_->TerminalInputError());
 		if (!Paint())
 			return ERROR_WRITE_FAULT;
 	}

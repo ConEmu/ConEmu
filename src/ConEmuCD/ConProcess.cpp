@@ -1081,49 +1081,39 @@ bool ConProcess::IsConsoleProcessCountSupported() const
 
 MArray<DWORD> ConProcess::GetSpawnedProcesses() const
 {
-	if (!pfnGetConsoleProcessList)
-		return {};
-
 	MArray<DWORD> result;
-	DWORD nProcesses[MAX_GET_PROC_COUNT] = {};
-	const DWORD nProcCount = pfnGetConsoleProcessList(nProcesses, countof(nProcesses));
-	const DWORD maxCount = std::max<DWORD>(nProcCount, countof(nProcesses));
-
-	result.reserve(maxCount);
-
-	for (DWORD i = 0; i < maxCount; i++)
+	for (const DWORD pid : GetAllProcesses())
 	{
-		if ((nProcesses[i] == gpWorker->RootProcessId())
-			|| (nProcesses[i] == gnSelfPID)
+		if (!pid || pid == gpWorker->RootProcessId() || pid == gnSelfPID
 #ifndef WIN64
-			|| (nProcesses[i] == nNtvdmPID)
+			|| pid == nNtvdmPID
 #endif
-			)
-			continue;
-		result.push_back(nProcesses[i]);
+			) continue;
+		result.push_back(pid);
 	}
-
 	return result;
 }
 
 MArray<DWORD> ConProcess::GetAllProcesses() const
 {
-	if (!pfnGetConsoleProcessList)
-		return {};
-
+	if (!pfnGetConsoleProcessList) return {};
 	MArray<DWORD> result;
-	DWORD nProcesses[MAX_GET_PROC_COUNT] = {};
-	const DWORD nProcCount = pfnGetConsoleProcessList(nProcesses, countof(nProcesses));
-	const DWORD maxCount = std::max<DWORD>(nProcCount, countof(nProcesses));
-
-	result.resize(maxCount);
-
-	for (DWORD i = 0; i < maxCount; i++)
+	DWORD capacity = MAX_GET_PROC_COUNT;
+	for (unsigned retry = 0; retry < 4; ++retry)
 	{
-		result[i] = nProcesses[i];
+		if (capacity > 65536 || !result.resize(capacity)) return {};
+		const DWORD count = pfnGetConsoleProcessList(&result[0], capacity);
+		if (!count) return {};
+		if (count <= capacity)
+		{
+			result.resize(count);
+			return result;
+		}
+		// The API returns required size, not number of initialized entries,
+		// when the supplied buffer is too small. Retry instead of reading past it.
+		capacity = count;
 	}
-
-	return result;
+	return {};
 }
 
 int ConProcess::GetProcessCount(DWORD *rpdwPID, const UINT nMaxCount, const DWORD dwMainServerPid)

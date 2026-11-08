@@ -29,6 +29,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #pragma once
 
 #include <mutex>
+#include <atomic>
 #include <map>
 #include "../common/MPipe.h"
 #include "../common/WCodePage.h"
@@ -60,7 +61,8 @@ public:
 	bool OurWriteConsoleW(const wchar_t* lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten);
 
 	void SetConPtyInput(HANDLE input);
-	bool IsConPty() const { return m_ConPtyInput != nullptr; }
+	bool IsConPty() const { return m_ConPtyInput.load() != nullptr; }
+	DWORD TerminalInputError() const { return m_ConPtyInputError.load(); }
 	bool WriteTerminalInput(const char* data, DWORD size);
 	bool ReportTerminalString(const wchar_t* text);
 	bool ReadTerminalFrame(COORD size, std::vector<condata::CharInfo>& cells, COORD& cursor, uint64_t& version,
@@ -86,7 +88,8 @@ private:
 	/// Console processors
 	std::mutex m_UseMutex;
 	std::mutex m_InputMutex;
-	HANDLE m_ConPtyInput = nullptr;
+	std::atomic<HANDLE> m_ConPtyInput{nullptr};
+	std::atomic<DWORD> m_ConPtyInputError{ERROR_SUCCESS};
 	uint64_t m_FrameVersion = 1;
 	unsigned m_ActiveHyperlink = 0, m_NextHyperlink = 1;
 	size_t m_UriChars = 0;

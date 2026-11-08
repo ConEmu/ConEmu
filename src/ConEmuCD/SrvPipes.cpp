@@ -106,9 +106,11 @@ bool DataServerStart()
 // Bodies
 BOOL WINAPI InputServerCommand(LPVOID pInst, MSG64* pCmd, MSG64* &ppReply, DWORD &pcbReplySize, DWORD &pcbMaxReplySize, LPARAM lParam)
 {
-	if (!pCmd || !pCmd->nCount || (pCmd->cbSize < sizeof(*pCmd)))
+	if (!pCmd || !pCmd->nCount || pCmd->cbSize < sizeof(*pCmd)
+		|| (pCmd->cbSize - offsetof(MSG64, msg)) / sizeof(pCmd->msg[0]) != pCmd->nCount
+		|| (pCmd->cbSize - offsetof(MSG64, msg)) % sizeof(pCmd->msg[0]))
 	{
-		_ASSERTE(pCmd && pCmd->nCount && (pCmd->cbSize < sizeof(*pCmd)));
+		return FALSE;
 	}
 	else
 	{

@@ -158,6 +158,10 @@ int RunHistoryTest(wchar_t **argv)
     }
     check(!IsConPtyUriAllowed(L"file://remote-server/share/file") && IsConPtyUriAllowed(L"file:///C:/Windows"),
           "Local file links allowed and remote shares rejected");
+    check(!IsConPtyUriAllowed(L"file:////remote-server/share/file")
+              && !IsConPtyUriAllowed(L"file:///%5c%5cremote-server/share/file")
+              && !IsConPtyUriAllowed(L"file:///C:/%2f%2fremote-server/share"),
+          "Empty-host and encoded-separator UNC disguises rejected");
     gate(L".bulk");
     check(ready(L".bulk"), "Large output completed");
     GetConsoleScreenBufferInfo(out, &info);
