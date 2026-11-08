@@ -1368,7 +1368,15 @@ void DoDllStop(bool bFinal, ConEmuHkDllState bFromTerminate)
 		| (bFinal ? ds_DllStopFinal : ds_DllStopNonFinal);
 
 	static bool bTermStopped = false;
-	if ((bFinal || (bFromTerminate & (ds_OnTerminateProcess|ds_OnExitProcess))) && !bTermStopped)
+	// Only drop the terminal mode when THIS process enabled it itself.
+	// ConEmuHk is injected into every console child; a child whose stdio is
+	// piped, or which merely inherited the shared console buffers with
+	// ENABLE_VIRTUAL_TERMINAL_PROCESSING already set by the parent TUI,
+	// would otherwise report XTerm as its own state and, on exit, flip
+	// the whole shared console to Win32 emulation - destroying the mouse
+	// and tty routing the parent TUI negotiated (see Issue #2246).
+	if ((bFinal || (bFromTerminate & (ds_OnTerminateProcess|ds_OnExitProcess))) && !bTermStopped
+		&& (CEAnsi::gWasXTermModeSet[tmc_TerminalType].pid == GetCurrentProcessId()))
 	{
 		bTermStopped = true;
 		DLOG1("DoneTermMode",0);
