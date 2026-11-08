@@ -73,6 +73,7 @@ FEFF    ZERO WIDTH NO-BREAK SPACE
 #include "Options.h"
 #include "OptionsClass.h"
 #include "RealConsole.h"
+#include "../common/ConPtyGraphemeDraw.h"
 #include "ScreenDump.h"
 #include "SetPgInfo.h"
 #include "TabBar.h"
@@ -3053,6 +3054,23 @@ void CVirtualConsole::UpdateText()
 
 		if (lbDelBrush)
 			DeleteObject(hBr);
+	}
+
+	std::vector<ConPtyGlyph> graphemes;
+	if (mp_RCon->GetConPtyGlyphs(m_Sizes.TextWidth, m_Sizes.TextHeight, graphemes) && !graphemes.empty())
+	{
+		const HFONT emojiFont = CreateFontW(-m_Sizes.nFontHeight, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+			DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH, L"Segoe UI Emoji");
+		for (const auto& glyph : graphemes)
+		{
+			const unsigned cell = glyph.position.Y * m_Sizes.TextWidth + glyph.position.X;
+			const auto& attr = mpn_ConAttrEx[cell];
+			const RECT rect = {glyph.position.X * m_Sizes.nFontWidth, glyph.position.Y * m_Sizes.nFontHeight,
+				(glyph.position.X + static_cast<int>(glyph.width)) * m_Sizes.nFontWidth,
+				(glyph.position.Y + 1) * m_Sizes.nFontHeight};
+			DrawConPtyGrapheme(m_DC, rect, glyph.text, attr.crForeColor, attr.crBackColor, m_Sizes.nFontHeight, emojiFont);
+		}
+		if (emojiFont) DeleteObject(emojiFont);
 	}
 
 	VFree(nDX);

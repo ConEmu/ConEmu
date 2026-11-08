@@ -474,6 +474,7 @@ int WriteTextFile(LPCWSTR asPath, const wchar_t* asBuffer, int anSrcLen/* = -1*/
 		}
 
 		iWriteLen = WideCharToMultiByte(OutCP, 0, asBuffer, anSrcLen, pszMultibyte, iMBLen, nullptr, nullptr);
+		ptrBuf = pszMultibyte;
 	}
 
 	if (iWriteLen < 0)

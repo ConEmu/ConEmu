@@ -1,4 +1,4 @@
-﻿
+
 /*
 Copyright (c) 2009-present Maximus5
 All rights reserved.
@@ -913,6 +913,9 @@ bool CRealConsole::LoadAlternativeConsole(LoadAltMode iMode /*= lam_Default*/)
 		return false;
 	}
 
+	if (mb_ConPty.load() && mp_ABuf->m_Type == rbt_Primary)
+		GetConPtyGlyphs(0, 0, m_FrozenConPtyGlyphs, true);
+
 	SetActiveBuffer(mp_SBuf);
 
 	return true;
@@ -963,6 +966,7 @@ bool CRealConsole::SetActiveBuffer(CRealBuffer* aBuffer, bool abTouchMonitorEven
 	CRealBuffer* pOldBuffer = mp_ABuf;
 
 	mp_ABuf = aBuffer;
+	if (aBuffer == mp_RBuf) m_FrozenConPtyGlyphs.clear();
 	mb_ABufChaged = true;
 
 	if (isActive(false))
@@ -5603,9 +5607,13 @@ bool CRealConsole::DoSelectionCopy(CECopyMode CopyMode /*= cm_CopySel*/, BYTE nF
 		CONSOLE_SCREEN_BUFFER_INFO sbi = {};
 		pBuf = mp_ABuf;
 		pBuf->ConsoleScreenBufferInfo(&sbi);
+		// Copy the GUI viewport, which may be virtually scrolled away from conhost.
+		sbi.srWindow.Top = pBuf->GetBufferPosY();
+		sbi.srWindow.Bottom = sbi.srWindow.Top + pBuf->GetTextHeight() - 1;
 		// Start Block mode for HTML (nFormat!=0), we need to "represent" screen contents
 		// And Stream mode for plain text (nFormat==0)
 		pBuf->StartSelection((nFormat==0), sbi.srWindow.Left, sbi.srWindow.Top);
+		pBuf = mp_ABuf; // selection may switch to a frozen full-buffer snapshot
 		pBuf->ExpandSelection(sbi.srWindow.Right, sbi.srWindow.Bottom, false);
 	}
 
@@ -6018,8 +6026,16 @@ bool CRealConsole::StartStopTermMode(const DWORD pid, const TermModeCommand mode
 	switch (mode)
 	{
 	case tmc_TerminalType:
-		_ASSERTE(value == te_win32 || value == te_xterm);
+		_ASSERTE(value == te_win32 || value == te_xterm || value == te_conpty);
+		if (value == te_conpty && !m_ConPtyMap.IsValid())
+		{
+			m_ConPtyMap.InitName(ConPtyDataName, LODWORD(mp_VCon->GetView()));
+			m_ConPtyMap.Open(false);
+		}
+		mb_ConPty = value == te_conpty;
+		m_TrueColorerHeader.flushCounter = 0;
 		StartStopXTerm(pid, (value != te_win32));
+		mp_VCon->Invalidate();
 		break;
 	case tmc_MouseMode:
 		StartStopXMouse(pid, static_cast<TermMouseMode>(value));
@@ -6054,6 +6070,87 @@ bool CRealConsole::StartStopTermMode(const DWORD pid, const TermModeCommand mode
 	}
 
 	return processed;
+}
+
+bool CRealConsole::GetConPtyGlyphs(int columns, int rows, std::vector<ConPtyGlyph>& glyphs, bool fullFrame)
+{
+	glyphs.clear();
+	const auto* data = m_ConPtyMap.Ptr();
+	if (!mb_ConPty.load()) return false;
+	if (mp_ABuf->m_Type != rbt_Primary)
+	{
+		const int top = fullFrame ? 0 : mp_ABuf->GetBufferPosY();
+		for (const auto& saved : m_FrozenConPtyGlyphs)
+			if (saved.position.Y >= top && saved.position.Y < top + rows && saved.position.X + saved.width <= columns)
+			{
+				auto copy = saved; copy.position.Y -= top; glyphs.push_back(std::move(copy));
+			}
+		return true;
+	}
+	if (!data) return false;
+	const int top = fullFrame ? 0 : mp_ABuf->GetBufferPosY();
+	if (fullFrame) { columns = data->columns; rows = data->rows; }
+	for (unsigned attempt = 0; attempt < 3; ++attempt)
+	{
+		glyphs.clear();
+		const auto counter = data->annotation.flushCounter;
+		if (data->annotation.locked || data->version != ConPtyDataVersion || data->columns != columns
+			|| !data->columns || data->rows > ConPtyCellCapacity / data->columns || top < 0
+			|| data->graphemeCount > ConPtyGraphemeCapacity || data->graphemeChars > ConPtyGraphemeChars) return false;
+		for (int y = 0; y < rows && y + top < static_cast<int>(data->rows); ++y)
+			for (int x = 0; x < columns; ++x)
+			{
+				const auto& cell = data->cells[(y + top) * columns + x];
+				const unsigned id = cell.raw[6], width = cell.raw[5];
+				if (!id || !width || width > 2 || x + width > columns) continue;
+				const auto entry = std::lower_bound(data->graphemes, data->graphemes + data->graphemeCount, id,
+					[](const ConPtyLinkEntry& item, DWORD value) { return item.id < value; });
+				if (entry == data->graphemes + data->graphemeCount || entry->id != id || entry->length > 64
+					|| entry->offset > data->graphemeChars || entry->length > data->graphemeChars - entry->offset) continue;
+				glyphs.push_back({{static_cast<SHORT>(x), static_cast<SHORT>(y)}, width,
+					std::wstring(data->graphemeText + entry->offset, entry->length)});
+			}
+		MemoryBarrier();
+		if (!data->annotation.locked && counter == data->annotation.flushCounter) return true;
+	}
+	glyphs.clear();
+	return false;
+}
+
+bool CRealConsole::GetColorData(AnnotationHeader& header, const AnnotationInfo*& cells, bool& absolute)
+{
+	absolute = false;
+	cells = nullptr;
+	if (mb_ConPty.load())
+	{
+		const auto* data = m_ConPtyMap.Ptr();
+		if (!data || data->version != ConPtyDataVersion || data->annotation.locked
+			|| !data->columns || !data->rows || data->rows > ConPtyCellCapacity / data->columns)
+			return false;
+		header = data->annotation;
+		header.bufferSize = data->rows * data->columns;
+		cells = data->cells;
+		absolute = true;
+		return true;
+	}
+	if (!m_TrueColorerMap.IsValid() || !mp_TrueColorerData) return false;
+	header = *m_TrueColorerMap.Ptr();
+	cells = mp_TrueColorerData;
+	return !header.locked;
+}
+
+bool CRealConsole::GetConPtyLink(COORD position, CEStr& uri, COORD& first, COORD& last)
+{
+	std::wstring target;
+	if (!mb_ConPty.load() || !ResolveConPtyLink(m_ConPtyMap.Ptr(), position, target, first, last))
+		return false;
+	uri.Set(target.c_str());
+	return true;
+}
+
+bool CRealConsole::UseTrueColor() const
+{
+	return gpSet->isTrueColorer || mb_ConPty.load();
 }
 
 bool CRealConsole::StartStopTermMode(TermModeCommand mode, ChangeTermAction action)

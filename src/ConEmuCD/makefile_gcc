@@ -73,6 +73,7 @@ SRCS = \
 		../ConEmuHk/Injects.cpp      \
 		Actions.cpp        \
 		ConAnsi.cpp        \
+		ConPty.cpp         \
 		ConAnsiImpl.cpp    \
 		ConData.cpp        \
 		ConEmuCmd.cpp      \

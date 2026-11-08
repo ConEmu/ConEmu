@@ -40,6 +40,10 @@ set -- $(sed -nE 's/^[[:space:]]*([^[:space:]]+\.cpp)[[:space:]]*\\?[[:space:]]*
     -lshlwapi -lole32 -loleaut32 -lcomctl32 -luuid -lwinmm
 
 cp "$root/Release/ConEmu/License.txt" "$root/Release/ConEmu/ConEmu.l10n" "$package/ConEmu/"
+mkdir -p "$package/ConEmu/Scripts"
+cp "$root/Release/ConEmu/Scripts/ConEmu.NoHooks.psm1" "$package/ConEmu/Scripts/"
+cp "$root/Release/ConEmu/Scripts/ConEmu.NoHooks.bash" "$package/ConEmu/Scripts/"
+cp "$root/src/common/Unicode-LICENSE.txt" "$package/ConEmu/"
 cp "$root"/Release/plugins/ConEmu/ConEmuPlugin_*.lng "$plugin/"
 
 sh "$root/build-arm64-extra-plugins.sh" "$out"
