@@ -18,7 +18,15 @@ int RunInConhost(wchar_t **argv)
     if (!GetModuleFileNameW(nullptr, executable, countof(executable)) ||
         !GetSystemDirectoryW(systemDirectory, countof(systemDirectory)))
         return 3;
-    const std::wstring host = std::wstring(systemDirectory) + L"\\conhost.exe";
+    std::wstring host = std::wstring(systemDirectory) + L"\\conhost.exe";
+    // WOW64's system directory may not contain conhost (Windows ARM64).
+    if (GetFileAttributesW(host.c_str()) == INVALID_FILE_ATTRIBUTES)
+    {
+        wchar_t windows[MAX_PATH];
+        if (!GetWindowsDirectoryW(windows, countof(windows))) return 3;
+        host = std::wstring(windows) + L"\\Sysnative\\conhost.exe";
+        if (GetFileAttributesW(host.c_str()) == INVALID_FILE_ATTRIBUTES) return 3;
+    }
     const std::wstring arguments = L"-- \"" + std::wstring(executable) + L"\" \"" + argv[1] + L"\" \"" + argv[2] +
                                    L"\" \"" + argv[3] + L"\" --conhost";
     const std::wstring exitFile = std::wstring(argv[3]) + L".exit";
@@ -172,6 +180,7 @@ int RunHistoryTest(wchar_t **argv)
     gate(L".stop");
     DWORD wait = WaitForSingleObject(pi.hProcess, 10000), code;
     GetExitCodeProcess(pi.hProcess, &code);
+    if (wait != WAIT_OBJECT_0 || code != 19) report << "DETAIL wait=" << wait << " exit=" << code << "\n";
     check(wait == WAIT_OBJECT_0 && code == 19, "History session exits normally");
     if (wait != WAIT_OBJECT_0)
         TerminateProcess(pi.hProcess, 99);

@@ -161,7 +161,9 @@ SrvAnsi* SrvAnsi::Object()
 		if (!object_)
 		{
 			object_ = new SrvAnsi();
-			lock.release();
+			// release() abandons ownership without unlocking; MSVC then throws
+			// resource_deadlock_would_occur when shutdown reacquires this mutex.
+			lock.unlock();
 
 			Shutdown::RegisterEvent(SrvAnsi::Release, 0);
 		}

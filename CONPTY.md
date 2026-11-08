@@ -3,8 +3,9 @@
 This implementation is shared source for Windows x86, x64 and ARM64. It lives in
 the same pull-request branch as the Windows theme and ARM64 Far changes. The
 branch name `conemu-arm64-nohooks` is historical; it is not an architecture guard.
-The latest ConPTY runtime validation and ready-to-run package are ARM64 only.
-The earlier x86/x64 ZIPs contain the shared theme changes but predate ConPTY.
+ConPTY runtime validation and ready-to-run packages are available for ARM64,
+x86 and x64. Intel binaries were tested under Windows ARM64 emulation; physical
+x86/x64 Windows systems were not available.
 
 ## Starting a session
 
@@ -84,6 +85,42 @@ data is distributed with `Unicode-LICENSE.txt` (Unicode License V3).
 
 See [ARM64-BUILD.md](ARM64-BUILD.md) for the build procedure and standalone test
 sources in `src/UnitTests/ConPty`. The ConPTY sources are included by the common
-GNU Make and MSVC server projects. New ConPTY builds for x86/x64 have not yet been
-built or runtime-validated; the downloadable Intel packages are explicitly
-labelled as earlier, without ConPTY.
+GNU Make and MSVC server projects. Intel builds use MSVC v142. The x86/x64 ZIPs
+include both helper/server/hook bitnesses for mixed-bitness Windows. The
+PowerShell module chooses the helper appropriate to the operating system.
+
+## Ordinary launches and hook compatibility
+
+`/PTY` is opt-in. Without it, ordinary console launches retain the existing
+ConEmuHk path when injection is enabled in the user's profile. The Intel ZIPs
+include ConEmuHk.dll and ConEmuHk64.dll and do not ship a profile that disables
+injection. In both x86 and x64 GUI tests, the same profile kept injection enabled:
+the normal-launch probe found its hook loaded, and the `/PTY` probe found neither
+hook DLL in its process. Thus the new mode does not globally turn legacy hooks
+off. Hooks can only be injected into a supported matching x86/x64 target; they do
+not turn into ARM64 hooks when running Intel builds under emulation.
+
+Both Intel builds passed standalone ANSI/input/lifecycle, history/OSC8,
+Unicode/reflow, real Vim/less, GUI RGB/history/frozen Unicode copy and PowerShell
+5.1/7 checks. The standard history fixture also inspects loaded server modules to
+verify ConEmuHk is absent. Unicode conformance passes 766 cases / 1990 boundaries
+on each architecture. The tests revealed and fixed an existing factory mutex
+ownership bug (`unique_lock::release` abandoned a locked mutex), which MSVC
+reported as a shutdown exception. The shared fix was rechecked on ARM64.
+
+To reproduce the core Intel build after `git submodule update --init --recursive`,
+run from a Visual Studio developer PowerShell with the v142 C++ tools and a
+Windows 10 SDK installed:
+
+```powershell
+foreach ($platform in 'Win32', 'x64') {
+  MSBuild.exe src/CE.sln '/t:ConEmu;ConEmuC;ConEmuCD;ConEmuHk' /m:4 `
+    /p:Configuration=Release /p:Platform=$platform `
+    /p:PlatformToolset=v142 /p:WindowsTargetPlatformVersion=10.0
+  if ($LASTEXITCODE) { throw "Build failed: $platform" }
+}
+```
+
+The optional Far plugins/thumbnail modules in these ZIPs retain the previously
+validated builds; their source did not change in this update. Settings, profile
+files and the user's default launch mode are not replaced by the archives.

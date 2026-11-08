@@ -2,7 +2,8 @@
 $script:ShellIntegration = $null
 
 function Get-ConEmuHelper {
-    $helper = Join-Path (Split-Path $PSScriptRoot -Parent) 'ConEmuC64.exe'
+    $name = if ([Environment]::Is64BitOperatingSystem) { 'ConEmuC64.exe' } else { 'ConEmuC.exe' }
+    $helper = Join-Path (Split-Path $PSScriptRoot -Parent) $name
     if (-not (Test-Path -LiteralPath $helper)) {
         $helper = Join-Path (Split-Path $PSScriptRoot -Parent) 'ConEmuC.exe'
     }
