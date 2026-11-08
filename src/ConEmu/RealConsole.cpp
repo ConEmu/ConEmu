@@ -5036,7 +5036,10 @@ void CRealConsole::OnScroll(UINT messg, WPARAM wParam, int x, int y, bool abFrom
 		int nDirCmd = (m_Mouse.WheelDirAccum > 0)
 			? (lbCtrl ? SB_PAGEUP : SB_LINEUP)
 			: (lbCtrl ? SB_PAGEDOWN : SB_LINEDOWN);
-		mp_ABuf->DoScrollBuffer(nDirCmd, -1, nCount);
+		// Keep Far's real viewport at its cursor. Only move the GUI viewport,
+		// otherwise Far redraws pull the real console straight back to the bottom.
+		mp_ABuf->DoScrollBuffer(nDirCmd, -1, nCount,
+			gpSet->isFarWheelScrollback && isFar() && isFarBufferSupported());
 
 		m_Mouse.WheelDirAccum %= WHEEL_DELTA;
 		break;
@@ -6630,7 +6633,7 @@ LRESULT CRealConsole::DoScroll(int nDirection, UINT nCount /*= 1*/)
 	CONSOLE_SCREEN_BUFFER_INFO sbi = {};
 	SMALL_RECT srRealWindow = {};
 	int nVisible = 0;
-	bool bOnlyVirtual = false;
+	bool bOnlyVirtual = gpSet->isFarWheelScrollback && isFar() && isFarBufferSupported();
 
 	mp_ABuf->ConsoleScreenBufferInfo(&sbi, &srRealWindow);
 
@@ -14772,9 +14775,14 @@ bool CRealConsole::isInternalScroll()
 	if (!mp_ABuf->isScroll())
 		return false;
 
-	// События колеса мышки посылать в фар?
 	if (isFar())
-		return false;
+	{
+		// Use live Far metadata, not frames detected in historical screen contents.
+		const auto* info = GetFarInfo();
+		return gpSet->isFarWheelScrollback && isFarBufferSupported() && info
+			&& info->bFarPanelInfoFilled && info->nMacroArea == fma_Panels
+			&& !info->FarLeftPanel.Visible && !info->FarRightPanel.Visible;
+	}
 
 	return true;
 }

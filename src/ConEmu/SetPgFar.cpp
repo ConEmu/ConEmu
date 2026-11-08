@@ -65,6 +65,7 @@ LRESULT CSetPgFar::OnInitDialog(HWND hDlg, bool abInitial)
 
 	checkDlgButton(hDlg, cbKeyBarRClick, gpSet->isKeyBarRClick);
 
+	checkDlgButton(hDlg, cbFarWheelScrollback, gpSet->isFarWheelScrollback);
 	checkDlgButton(hDlg, cbFarHourglass, gpSet->isFarHourglass);
 	SetDlgItemInt(hDlg, tFarHourglass, gpSet->nFarHourglassDelay, false);
 

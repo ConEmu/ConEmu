@@ -299,6 +299,9 @@ bool CSetDlgButtons::ProcessButtonClick(HWND hDlg, WORD CB, BYTE uCheck)
 		case cbScrollbarDynamic:
 			OnBtn_ScrollbarDynamic(hDlg, CB, uCheck);
 			break;
+		case cbFarWheelScrollback:
+			gpSet->isFarWheelScrollback = (uCheck == BST_CHECKED);
+			break;
 		case cbFarHourglass:
 			OnBtn_FarHourglass(hDlg, CB, uCheck);
 			break;

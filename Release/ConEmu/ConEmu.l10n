@@ -1219,6 +1219,21 @@
       "ko_KR": "ConEmu가 초점을 잃으면 내용이 흐려질 수 있습니다. 가장 밝은 색상을 지정할 수 있습니다.",
       "id": 1581 }
     ,
+    "cbFarWheelScrollback": {
+      "en": "Scroll the output buffer instead of command history when both Far panels are hidden. Requires the main ConEmu plugin for Far and Far started with -w. Works without ConEmuHk or a Lua macro. Mouse handling in visible panels, editors and dialogs is unchanged.",
+      "ru": "Прокручивать буфер вывода вместо истории команд, когда обе панели Far скрыты. Требуются основной плагин ConEmu для Far и запуск Far с параметром -w. Работает без ConEmuHk и Lua-макроса. Обработка мыши в видимых панелях, редакторе и диалогах не меняется.",
+      "zh": "两个 Far 面板都隐藏时，滚动输出缓冲区而不是命令历史记录。需要 Far 的主 ConEmu 插件，并使用 -w 参数启动 Far。无需 ConEmuHk 或 Lua 宏。可见面板、编辑器和对话框中的鼠标操作保持不变。",
+      "de": "Wenn beide Far-Panels ausgeblendet sind, den Ausgabepuffer statt des Befehlsverlaufs scrollen. Erfordert das Hauptplugin ConEmu für Far und den Start von Far mit -w. Funktioniert ohne ConEmuHk oder Lua-Makro. Die Mausbedienung in sichtbaren Panels, Editoren und Dialogen bleibt unverändert.",
+      "ja": "Far の両方のパネルが非表示のとき、コマンド履歴の代わりに出力バッファーをスクロールします。Far 用のメイン ConEmu プラグインと、-w オプションでの Far の起動が必要です。ConEmuHk や Lua マクロは不要です。表示中のパネル、エディター、ダイアログでのマウス操作は変わりません。",
+      "es": "Desplazar el búfer de salida en lugar del historial de comandos cuando ambos paneles de Far estén ocultos. Requiere el complemento principal de ConEmu para Far e iniciar Far con -w. Funciona sin ConEmuHk ni macros Lua. No cambia el manejo del ratón en los paneles visibles, editores y diálogos.",
+      "pl": "Przewijaj bufor wyjścia zamiast historii poleceń, gdy oba panele Far są ukryte. Wymaga głównej wtyczki ConEmu dla Far oraz uruchomienia Far z parametrem -w. Działa bez ConEmuHk i makra Lua. Obsługa myszy w widocznych panelach, edytorach i oknach dialogowych pozostaje bez zmian.",
+      "it_IT": "Scorre il buffer di output invece della cronologia dei comandi quando entrambi i pannelli Far sono nascosti. Richiede il plugin principale ConEmu per Far e l’avvio di Far con -w. Funziona senza ConEmuHk o macro Lua. La gestione del mouse nei pannelli visibili, negli editor e nelle finestre di dialogo rimane invariata.",
+      "fr": "Faire défiler le tampon de sortie plutôt que l’historique des commandes lorsque les deux panneaux Far sont masqués. Nécessite le module principal ConEmu pour Far et le lancement de Far avec -w. Fonctionne sans ConEmuHk ni macro Lua. Le comportement de la souris dans les panneaux visibles, les éditeurs et les boîtes de dialogue reste inchangé.",
+      "ko": "Far 패널이 모두 숨겨져 있으면 명령 기록 대신 출력 버퍼를 스크롤합니다. Far용 기본 ConEmu 플러그인이 필요하며 Far를 -w 옵션으로 시작해야 합니다. ConEmuHk나 Lua 매크로 없이 작동합니다. 표시된 패널, 편집기 및 대화 상자의 마우스 동작은 변경되지 않습니다.",
+      "ko_KR": "Far 패널이 모두 숨겨져 있으면 명령 기록 대신 출력 버퍼를 스크롤합니다. Far용 기본 ConEmu 플러그인이 필요하며 Far를 -w 옵션으로 시작해야 합니다. ConEmuHk나 Lua 매크로 없이 작동합니다. 표시된 패널, 편집기 및 대화 상자의 마우스 동작은 변경되지 않습니다.",
+      "pt_BR": "Rolar o buffer de saída em vez do histórico de comandos quando ambos os painéis do Far estiverem ocultos. Requer o plugin principal do ConEmu para Far e que o Far seja iniciado com -w. Funciona sem ConEmuHk nem macro Lua. O uso do mouse nos painéis visíveis, editores e caixas de diálogo permanece inalterado.",
+      "id": 3998
+    },
     "cbFarHourglass": {
       "en": "Show AppStarting mouse cursor (arrow with a small hourglass or circle) when Far is busy (not responding during long operations)",
       "ru": "Показать AppStarting курсор мыши (стрелка с маленькими песочными часами или кружком), когда Far занят (не отвечает во время длительных операций)",
@@ -11215,6 +11230,21 @@
       "ko_KR": "강조 및 이동",
       "id": 1765 }
     ,
+    "cbFarWheelScrollback": {
+      "en": "Wheel scrolls buffer when Far panels are hidden",
+      "ru": "Прокручивать буфер колесом при скрытых панелях Far",
+      "zh": "隐藏 Far 面板时用滚轮滚动缓冲区",
+      "de": "Bei ausgeblendeten Far-Panels den Puffer mit dem Mausrad scrollen",
+      "ja": "Far のパネル非表示時にホイールでバッファーをスクロール",
+      "es": "Desplazar el búfer con la rueda al ocultar los paneles de Far",
+      "pl": "Przewijaj bufor kółkiem, gdy panele Far są ukryte",
+      "it_IT": "Scorri il buffer con la rotella quando i pannelli Far sono nascosti",
+      "fr": "Faire défiler le tampon avec la molette si les panneaux Far sont masqués",
+      "ko": "Far 패널이 숨겨져 있으면 휠로 버퍼 스크롤",
+      "ko_KR": "Far 패널이 숨겨져 있으면 휠로 버퍼 스크롤",
+      "pt_BR": "Rolar o buffer com a roda quando os painéis do Far estiverem ocultos",
+      "id": 3998
+    },
     "cbFarHourglass": {
       "en": "Change mouse cursor if busy (ms)",
       "ru": "Изменить курсор мыши, если занят (мс)",

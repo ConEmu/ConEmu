@@ -2797,6 +2797,14 @@ DWORD CPluginBase::MonitorThreadProcW(LPVOID lpParameter)
 		if (dwWait == WAIT_OBJECT_0)
 			break; // завершение плагина
 
+		// No input hook is available to request metadata refreshes in this mode.
+		// Schedule Far APIs on its main thread, including when no background plugin is enabled.
+		if (!ghHooksModule && ghConEmuWndDC && IS_SYNCHRO_ALLOWED && gnSynchroCount == 0)
+		{
+			gbNeedPostReloadFarInfo = TRUE;
+			Plugin()->ExecuteSynchro();
+		}
+
 		// Если FAR запущен в "невидимом" режиме и по истечении таймаута
 		// так и не подцепились к ConEmu - всплыть окошко консоли
 		if (lbStartedNoConEmu && ghConEmuWndDC == nullptr && FarHwnd != nullptr)
@@ -4352,7 +4360,7 @@ bool CPluginBase::ReloadFarInfoApi()
 	int nArea = GetMacroArea();
 	if (nArea >= 0)
 	{
-		if (nArea == ma_Shell || nArea == ma_InfoPanel || nArea == ma_QViewPanel || nArea == ma_TreePanel || ma_Search)
+		if (nArea == ma_Shell || nArea == ma_InfoPanel || nArea == ma_QViewPanel || nArea == ma_TreePanel || nArea == ma_Search)
 			gpFarInfo->nMacroArea = fma_Panels;
 		else if (nArea == ma_Viewer)
 			gpFarInfo->nMacroArea = fma_Viewer;
@@ -4370,9 +4378,19 @@ bool CPluginBase::ReloadFarInfoApi()
 	}
 
 	gpFarInfo->bFarPanelAllowed = CheckPanelExist();
-	gpFarInfo->bFarPanelInfoFilled = FALSE;
-	gpFarInfo->bFarLeftPanel = FALSE;
-	gpFarInfo->bFarRightPanel = FALSE;
+	// Far panel APIs must run on its main thread. Keep the last valid snapshot
+	// on background refreshes; an old plugin leaves Filled false (safe fallback).
+	if (GetCurrentThreadId() == gnMainThreadId)
+	{
+		CEPanelInfo left = {}, right = {};
+		const bool valid = gpFarInfo->bFarPanelAllowed
+			&& GetPanelInfo(gpdf_Left, &left) && GetPanelInfo(gpdf_Right, &right);
+		gpFarInfo->bFarPanelInfoFilled = valid;
+		gpFarInfo->bFarLeftPanel = valid && left.bVisible;
+		gpFarInfo->bFarRightPanel = valid && right.bVisible;
+		gpFarInfo->FarLeftPanel.Visible = valid && left.bVisible;
+		gpFarInfo->FarRightPanel.Visible = valid && right.bVisible;
+	}
 
 	// -- пока, во избежание глюков в FAR при неожиданных запросах информации о панелях
 	//if (FALSE == (gpFarInfo->bFarPanelAllowed)) {

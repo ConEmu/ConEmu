@@ -795,6 +795,7 @@ void Settings::InitSettings()
 	bShowFarWindows = true;
 	isRSelFix = true; isMouseSkipActivation = true; isMouseSkipMoving = true;
 	isMouseDragWindow = true;
+	isFarWheelScrollback = false;
 	isFarHourglass = true; nFarHourglassDelay = 2000;
 	isDisableFarFlashing = false; isDisableAllFlashing = false;
 	isDragEnabled = DRAG_L_ALLOWED; isDropEnabled = (BYTE)1; isDefCopy = true; isDropUseMenu = 2;
@@ -2836,6 +2837,7 @@ void Settings::LoadSettings(bool& rbNeedCreateVanilla, const SettingsStorage* ap
 		reg->Load(L"MouseSkipActivation", isMouseSkipActivation);
 		reg->Load(L"MouseSkipMoving", isMouseSkipMoving);
 		reg->Load(L"MouseDragWindow", isMouseDragWindow);
+		reg->Load(L"FarWheelScrollback", isFarWheelScrollback);
 		reg->Load(L"FarHourglass", isFarHourglass);
 		reg->Load(L"FarHourglassDelay", nFarHourglassDelay);
 
@@ -3825,6 +3827,7 @@ BOOL Settings::SaveSettings(BOOL abSilent /*= FALSE*/, const SettingsStorage* ap
 		reg->Save(L"MouseSkipActivation", isMouseSkipActivation);
 		reg->Save(L"MouseSkipMoving", isMouseSkipMoving);
 		reg->Save(L"MouseDragWindow", isMouseDragWindow);
+		reg->Save(L"FarWheelScrollback", isFarWheelScrollback);
 		reg->Save(L"FarHourglass", isFarHourglass);
 		reg->Save(L"FarHourglassDelay", nFarHourglassDelay);
 		reg->Save(L"Dnd", isDragEnabled);
