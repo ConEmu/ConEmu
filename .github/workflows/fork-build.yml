@@ -1,0 +1,103 @@
+name: Fork build and tests
+
+on:
+  push:
+    branches: [conemu-arm64-nohooks]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  intel:
+    if: github.repository == 'Sim-md/ConEmu'
+    name: Windows ${{ matrix.arch }}
+    runs-on: windows-2022
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86
+            platform: Win32
+            suffix: ''
+            machine: 014C
+          - arch: x64
+            platform: x64
+            suffix: '64'
+            machine: 8664
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: microsoft/setup-msbuild@v2
+      - name: Build
+        run: >
+          msbuild src/CE.sln /m:3 /v:minimal
+          '/t:ConEmu;ConEmuC;ConEmuCD;ConEmuHk;Far_ConEmuPlugin;Far_ConEmuBg;Far_ConEmuLn;Far_ConEmuTh;Tests'
+          /p:Configuration=Release /p:Platform=${{ matrix.platform }}
+          /p:PlatformToolset=v143 /p:WindowsTargetPlatformVersion=10.0
+      - name: Run unit tests and verify GUI architecture
+        run: |
+          & "./Release/Tests_Release_${{ matrix.platform }}.exe"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $bytes = [IO.File]::ReadAllBytes((Resolve-Path './Release/ConEmu${{ matrix.suffix }}.exe').Path)
+          $machine = '{0:X4}' -f [BitConverter]::ToUInt16($bytes, [BitConverter]::ToInt32($bytes, 60) + 4)
+          if ($machine -ne '${{ matrix.machine }}') { throw "Unexpected PE machine: $machine" }
+
+  arm64:
+    if: github.repository == 'Sim-md/ConEmu'
+    name: Build Windows ARM64
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - name: Install LLVM-MinGW
+        run: |
+          archive=llvm-mingw-20261104-ucrt-ubuntu-22.04-aarch64.tar.xz
+          curl --fail --location --retry 3 -o "$RUNNER_TEMP/$archive" "https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/$archive"
+          echo "595e95bdffabfc62559fe26e30bdfbccf277cbaed4902793555015ee47306b94  $RUNNER_TEMP/$archive" | sha256sum --check
+          mkdir "$RUNNER_TEMP/llvm-mingw"
+          tar -xf "$RUNNER_TEMP/$archive" --strip-components=1 -C "$RUNNER_TEMP/llvm-mingw"
+          echo "$RUNNER_TEMP/llvm-mingw/bin" >> "$GITHUB_PATH"
+      - name: Build ConEmu and Far plugins
+        run: sh build-arm64.sh
+      - name: Build ConPTY tests
+        run: |
+          mkdir -p Release-arm64/tests
+          sources=src/UnitTests/ConPty
+          aarch64-w64-mingw32-clang++ -std=c++17 -O1 -static "$sources/ConPtyInput_test.cpp" -o Release-arm64/tests/Input.exe -lole32
+          aarch64-w64-mingw32-clang++ -std=c++17 -O1 -static -municode -include crtdbg.h -Wno-c++11-narrowing "$sources/ConPtyHistory_test.cpp" -o Release-arm64/tests/History.exe
+          aarch64-w64-mingw32-clang++ -std=c++17 -O1 -static -municode "$sources/ConPtyHistoryChild.cpp" -o Release-arm64/tests/HistoryChild.exe
+          tar -cf "$RUNNER_TEMP/arm64-ci.tar" -C Release-arm64 package tests
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arm64-ci
+          path: ${{ runner.temp }}/arm64-ci.tar
+          if-no-files-found: error
+          retention-days: 7
+
+  arm64-tests:
+    name: Test Windows ARM64
+    needs: arm64
+    runs-on: windows-11-arm
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: arm64-ci
+      - name: Run ConPTY regressions
+        run: |
+          tar -xf arm64-ci.tar
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & ./tests/Input.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $prefix = Join-Path $env:RUNNER_TEMP 'conpty-history'
+          & ./tests/History.exe (Resolve-Path './package/ConEmu/ConEmuC64.exe').Path (Resolve-Path './tests/HistoryChild.exe').Path $prefix
+          $result = $LASTEXITCODE
+          Get-Content "$prefix.report"
+          if ($result -ne 0) { exit $result }
