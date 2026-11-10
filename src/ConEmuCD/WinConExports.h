@@ -28,7 +28,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #pragma once
 
-#include <Windows.h>
+#include <windows.h>
 
 typedef BOOL (WINAPI* FGetConsoleKeyboardLayoutName)(wchar_t*);
 typedef BOOL (WINAPI* FGetConsoleDisplayMode)(LPDWORD);

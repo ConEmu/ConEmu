@@ -28,7 +28,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "../../../common/defines.h"
 using namespace std;
-#include <GdiPlus.h>
+#include <gdiplus.h>
 #include <crtdbg.h>
 #include "../../../common/Memory.h"
 #include "../../../common/WThreads.h"
