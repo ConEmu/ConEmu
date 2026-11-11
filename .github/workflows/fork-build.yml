@@ -35,7 +35,7 @@ jobs:
       - name: Build
         run: >
           msbuild src/CE.sln /m:3 /v:minimal
-          '/t:ConEmu;ConEmuC;ConEmuCD;ConEmuHk;Far_ConEmuPlugin;Far_ConEmuBg;Far_ConEmuLn;Far_ConEmuTh;Tests'
+          '/t:ConEmu;ConEmuC;ConEmuCD;ConEmuHk;Far_ConEmuPlugin;Far_ConEmuBg;Far_ConEmuLn;Far_ConEmuTh;Far_ConEmuTh_gdi+;Far_ConEmuTh_ico;Far_ConEmuTh_pe;Tests'
           /p:Configuration=Release /p:Platform=${{ matrix.platform }}
           /p:PlatformToolset=v143 /p:WindowsTargetPlatformVersion=10.0
       - name: Run unit tests and verify GUI architecture
@@ -45,6 +45,19 @@ jobs:
           $bytes = [IO.File]::ReadAllBytes((Resolve-Path './Release/ConEmu${{ matrix.suffix }}.exe').Path)
           $machine = '{0:X4}' -f [BitConverter]::ToUInt16($bytes, [BitConverter]::ToInt32($bytes, 60) + 4)
           if ($machine -ne '${{ matrix.machine }}') { throw "Unexpected PE machine: $machine" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.arch }}
+          path: |
+            Release/ConEmu${{ matrix.suffix }}.exe
+            Release/ConEmu/ConEmuC${{ matrix.suffix }}.exe
+            Release/ConEmu/ConEmuCD${{ matrix.suffix }}.dll
+            Release/ConEmu/ConEmuHk${{ matrix.suffix }}.dll
+            Release/plugins/ConEmu/**/*.dll
+            Release/plugins/ConEmu/**/*.t32
+            Release/plugins/ConEmu/**/*.t64
+          if-no-files-found: error
+          retention-days: 7
 
   arm64:
     if: github.repository == 'Sim-md/ConEmu'
@@ -101,3 +114,33 @@ jobs:
           $result = $LASTEXITCODE
           Get-Content "$prefix.report"
           if ($result -ne 0) { exit $result }
+
+  release:
+    if: github.repository == 'Sim-md/ConEmu' && github.ref == 'refs/heads/conemu-arm64-nohooks'
+    needs: [intel, arm64-tests]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Package and verify all three ZIPs
+        run: |
+          mkdir -p artifacts/arm64
+          tar -xf artifacts/arm64-ci/arm64-ci.tar -C artifacts/arm64 package
+          python3 .github/scripts/package-fork-release.py artifacts dist "$GITHUB_SHA"
+      - name: Publish prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="ci-${GITHUB_SHA:0:7}-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          gh release create "$tag" --target "$GITHUB_SHA" --draft --prerelease --latest=false \
+            --title "ConEmu CI build ${GITHUB_SHA:0:7}" \
+            --notes "ARM64, x86 and x64 builds from $GITHUB_SHA. All jobs passed in $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID. SHA-256 sums are in SHA256SUMS.txt."
+          gh release upload "$tag" dist/*.zip dist/SHA256SUMS.txt
+          gh release edit "$tag" --draft=false --prerelease --latest=false
