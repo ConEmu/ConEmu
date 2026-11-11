@@ -552,6 +552,7 @@ struct Settings
 		bool isMouseDragWindow;
 		//reg->Load(L"FarHourglass", isFarHourglass);
 		bool isFarHourglass;
+		bool isFarWheelScrollback; // Handle hidden-panel wheel in the GUI, without a Far macro
 		//reg->Load(L"FarHourglassDelay", nFarHourglassDelay);
 		UINT nFarHourglassDelay;
 		//reg->Load(L"DisableFarFlashing", isDisableFarFlashing); if (isDisableFarFlashing>2) isDisableFarFlashing = 2;

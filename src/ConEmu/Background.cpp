@@ -155,7 +155,7 @@ bool CBackground::FillBackground(
 	const BITMAPFILEHEADER* apBkImgData, // Содержимое *.bmp файла
 	LONG X, LONG Y, LONG Width, LONG Height, // Куда нужно положить картинку
 	BackgroundOp Operation,              // {eUpLeft = 0, eStretch = 1, eTile = 2, eUpRight = 4, ...}
-	bool abFade)                         // затемнение картинки, когда ConEmu НЕ в фокусе
+	bool abFade, bool preserveColors)    // затемнение картинки, когда ConEmu НЕ в фокусе
 {
 	if (!hBgDc)
 		return false;
@@ -227,7 +227,7 @@ bool CBackground::FillBackground(
 				}
 				GdiFlush(); // bits committed guarantee
 				// Copy bits from hLoadDC into hBgDc taking into account location and operation
-				BLENDFUNCTION bf = {AC_SRC_OVER, 0, gpSet->bgImageDarker, 0};
+				BLENDFUNCTION bf = {AC_SRC_OVER, 0, static_cast<BYTE>(preserveColors ? 255 : gpSet->bgImageDarker), 0};
 
 				if (abFade)
 				{
@@ -584,7 +584,7 @@ void CBackground::NeedBackgroundUpdate()
 // Создает (или возвращает уже созданный) HDC (CompatibleDC) для mp_BkImgData
 bool CBackground::PutPluginBackgroundImage(/*CBackground* pBack,*/ LONG X, LONG Y, LONG Width, LONG Height)
 {
-	if (!this) return nullptr;
+	if (!this) return false;
 
 	_ASSERTE(isMainThread());
 
@@ -743,7 +743,12 @@ bool CBackground::PutPluginBackgroundImage(/*CBackground* pBack,*/ LONG X, LONG 
 	if (gpSet->isFadeInactive && !gpConEmu->isMeForeground(false))
 		lbFade = true;
 
-	bool lbRc = FillBackground(&mp_BkImgData->bmp, X, Y, Width, Height, eUpLeft, lbFade);
+	bool preserveColors = false;
+#if defined(_M_ARM64) || defined(__aarch64__)
+	// Panel bitmaps include the Far palette color as their base fill.
+	preserveColors = (mp_BkImgData->dwDrawnPlaces & pbp_Panels) != 0;
+#endif
+	bool lbRc = FillBackground(&mp_BkImgData->bmp, X, Y, Width, Height, eUpLeft, lbFade, preserveColors);
 
 	//mb_BkImgChanged = FALSE;
 	return lbRc;
@@ -1014,6 +1019,7 @@ bool CBackground::PrepareBackground(CVirtualConsole* pVCon, HDC&/*OUT*/ phBgDc, 
 			}
 		}
 
+#if !defined(_M_ARM64) && !defined(__aarch64__)
 		// Check if the bitmap was prepared for the current Far state
 		if ((mp_BkImgData && pVCon)
 			// Don't use isFilePanel here because it is `false` when any dialog is active in Panels
@@ -1027,6 +1033,7 @@ bool CBackground::PrepareBackground(CVirtualConsole* pVCon, HDC&/*OUT*/ phBgDc, 
 			pbgBmpSize = MakeCoord(0, 0);
 			goto wrap;
 		}
+#endif
 	}
 
 	if (bSucceeded)

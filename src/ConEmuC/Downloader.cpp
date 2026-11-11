@@ -27,8 +27,8 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #define HIDE_USE_EXCEPTION_INFO
-#include <Windows.h>
-#include <WinInet.h>
+#include <windows.h>
+#include <wininet.h>
 #include "../common/Common.h"
 #include "../common/CmdLine.h"
 #include "../common/EnvVar.h"
@@ -766,7 +766,7 @@ BOOL CDownloader::DownloadFile(LPCWSTR asSource, LPCWSTR asTarget, DWORD& crc, D
 	mb_InetMode = !IsLocalFile(asSource);
 	const bool lbTargetLocal = IsLocalFile(asTarget);
 	_ASSERTE(lbTargetLocal);
-	UNREFERENCED_PARAMETER(lbTargetLocal);
+	(void)lbTargetLocal;
 	const DWORD cchDataMax = 64 * 1024;
 	BYTE* ptrData = static_cast<BYTE*>(malloc(cchDataMax));
 	#if 0

@@ -32,6 +32,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <winnt.h>
 #include <tchar.h>
 #include <limits>
+#include <shlwapi.h>
 #include "../common/Common.h"
 #include "../common/ConEmuCheck.h"
 #include "../common/CmdLine.h"
@@ -218,7 +219,12 @@ bool SrvAnsiImpl::WriteText(LPCWSTR lpBuffer, DWORD nNumberOfCharsToWrite, LPDWO
 		}
 	}
 
+	const auto originalAttr = m_Table->GetAttr();
+	auto textAttr = originalAttr;
+	textAttr.hyperlinkId = m_Owner->m_ActiveHyperlink;
+	m_Table->SetAttr(textAttr);
 	m_Table->Write(lpBuffer, nNumberOfCharsToWrite);
+	m_Table->SetAttr(originalAttr);
 
 	if (lpNumberOfCharsWritten)
 		*lpNumberOfCharsWritten = nNumberOfCharsToWrite;
@@ -664,16 +670,10 @@ wrap2:
 
 bool SrvAnsiImpl::FullReset()
 {
+	m_Owner->m_ActiveHyperlink = 0;
 	m_Owner->gDisplayParm.Reset(true);
 	m_Table->Reset(m_Owner->GetDefaultAttr());
 	return TRUE;
-}
-
-static bool GetConsoleScreenBufferInfoCached(CONSOLE_SCREEN_BUFFER_INFO* csbi)
-{
-	// #condata need to implement
-	throw;
-	return false;
 }
 
 void SrvAnsiImpl::ForwardLF()
@@ -943,6 +943,7 @@ void SrvAnsiImpl::DoSendCWD(LPCWSTR asCmd, ssize_t cchLen)
 
 		// Sends CECMD_STORECURDIR into RConServer
 		SendCurrentDirectory(gState.realConWnd_, pszCWD);
+		m_Table->SetWorkingDirectory(pszCWD);
 
 		free(pszCWD);
 	}
@@ -975,6 +976,8 @@ bool SrvAnsiImpl::ReportString(LPCWSTR asRet)
 {
 	if (!asRet || !*asRet)
 		return FALSE;
+	if (m_Owner->IsConPty())
+		return m_Owner->ReportTerminalString(asRet);
 	INPUT_RECORD ir[16] = {};
 	int nLen = lstrlen(asRet);
 	INPUT_RECORD* pir = (nLen <= (int)countof(ir)) ? ir : (INPUT_RECORD*)calloc(nLen,sizeof(INPUT_RECORD));
@@ -985,7 +988,7 @@ bool SrvAnsiImpl::ReportString(LPCWSTR asRet)
 	LPCWSTR pc = asRet;
 	for (int i = 0; i < nLen; i++, p++, pc++)
 	{
-		const char ch = (*pc == 0x1B || *pc >= 0x20) ? *pc : L' ';
+		const wchar_t ch = (*pc == 0x1B || (*pc >= 0x20 && *pc != 0x7F)) ? *pc : L' ';
 		p->EventType = KEY_EVENT;
 		p->Event.KeyEvent.bKeyDown = TRUE;
 		p->Event.KeyEvent.wRepeatCount = 1;
@@ -1005,17 +1008,8 @@ bool SrvAnsiImpl::ReportString(LPCWSTR asRet)
 
 void SrvAnsiImpl::ReportConsoleTitle()
 {
-	wchar_t sTitle[MAX_PATH*2+6] = L"\x1B]l";
-	wchar_t* p = sTitle+3;
-	_ASSERTEX(lstrlen(sTitle)==3);
-
-	DWORD nTitle = GetConsoleTitle(sTitle+3, MAX_PATH*2);
-	p = sTitle + 3 + std::min<DWORD>(nTitle, MAX_PATH*2);
-	*(p++) = L'\x1B';
-	*(p++) = L'\\';
-	*(p++) = 0;
-
-	ReportString(sTitle);
+	// Titles are untrusted output. Never echo them into input, even after
+	// filtering (CVE-2022-46387 / CVE-2023-39150). Applies to ConPTY too.
 }
 
 void SrvAnsiImpl::ReportTerminalPixelSize()
@@ -1057,29 +1051,18 @@ void SrvAnsiImpl::ReportTerminalPixelSize()
 
 void SrvAnsiImpl::ReportTerminalCharSize(int code)
 {
-	CONSOLE_SCREEN_BUFFER_INFO csbi = {};
-	if (GetConsoleScreenBufferInfoCached(&csbi))
-	{
-		wchar_t sCurInfo[64];
-		msprintf(sCurInfo, countof(sCurInfo),
-			L"\x1B[%u;%u;%ut",
-			code == 18 ? 8 : 9,
-			csbi.srWindow.Bottom-csbi.srWindow.Top+1, csbi.srWindow.Right-csbi.srWindow.Left+1);
-		ReportString(sCurInfo);
-	}
+	const auto size = m_Table->GetSize();
+	wchar_t report[64];
+	msprintf(report, countof(report), L"\x1B[%u;%u;%ut", code == 18 ? 8 : 9, size.y, size.x);
+	ReportString(report);
 }
 
 void SrvAnsiImpl::ReportCursorPosition()
 {
-	CONSOLE_SCREEN_BUFFER_INFO csbi = {};
-	if (GetConsoleScreenBufferInfoCached(&csbi))
-	{
-		wchar_t sCurInfo[32];
-		msprintf(sCurInfo, countof(sCurInfo),
-			L"\x1B[%u;%uR",
-			csbi.dwCursorPosition.Y-csbi.srWindow.Top+1, csbi.dwCursorPosition.X-csbi.srWindow.Left+1);
-		ReportString(sCurInfo);
-	}
+	const auto cursor = m_Table->GetCursor();
+	wchar_t report[32];
+	msprintf(report, countof(report), L"\x1B[%u;%uR", cursor.y + 1, cursor.x + 1);
+	ReportString(report);
 }
 
 bool SrvAnsiImpl::WriteAnsiCodes(LPCWSTR lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten)
@@ -1278,6 +1261,17 @@ wrap:
 
 void SrvAnsiImpl::WriteAnsiCode_CSI(AnsiEscCode& Code)
 {
+	// DECSET/DECRST commonly carry multiple independent private modes.
+	if ((Code.Action == L'h' || Code.Action == L'l') && Code.PvtLen == 1 && Code.Pvt[0] == L'?' && Code.ArgC > 1)
+	{
+		for (int i = 0; i < Code.ArgC; ++i)
+		{
+			auto one = Code; one.ArgC = 1; one.ArgV[0] = Code.ArgV[i];
+			WriteAnsiCode_CSI(one);
+		}
+		return;
+	}
+
 	/*
 
 CSI ? P m h			DEC Private Mode Set (DECSET)
@@ -1334,8 +1328,13 @@ CSI P s @			Insert P s (Blank) Character(s) (default = 1) (ICH)
 			PointXY crNewPos = cur;
 			enum class Direction { kAbsolute, kCompatible, kRelative };
 
-			auto set_y = [&crNewPos, &workRgn, &clipRgn, &cur](Direction direction, int value)
+			auto set_y = [this, &crNewPos, &workRgn, &clipRgn, &cur](Direction direction, int value)
 			{
+				if (m_Table->OriginMode && direction != Direction::kRelative)
+				{
+					crNewPos.Y = std::max<int>(clipRgn.Top, std::min<int>(clipRgn.Bottom, clipRgn.Top + value));
+					return;
+				}
 				const int kLegacyY = 9999;
 				if (direction == Direction::kCompatible && value >= std::min(kLegacyY, workRgn.bottom))
 					// #XTERM_256 Allow to put cursor into the legacy true-color area
@@ -1532,10 +1531,14 @@ CSI P s @			Insert P s (Blank) Character(s) (default = 1) (ICH)
 		// of the screen)
 		//
 		// Values are 1-based
-		if ((Code.ArgC >= 2) && (Code.ArgV[0] >= 0) && (Code.ArgV[1] >= Code.ArgV[0]))
-			SetScrollRegion(true, Code.ArgV[0], Code.ArgV[1]);
-		else
-			SetScrollRegion(false);
+		if (!Code.PvtLen)
+		{
+			const int height = m_Table->GetSize().y;
+			const int top = Code.ArgC > 0 && Code.ArgV[0] > 0 ? Code.ArgV[0] : 1;
+			const int bottom = Code.ArgC > 1 && Code.ArgV[1] > 0 ? Code.ArgV[1] : height;
+			if (top < bottom && bottom <= height)
+				SetScrollRegion(top != 1 || bottom != height, top, bottom);
+		}
 		break; // L'r'
 
 	case L'L':
@@ -1647,6 +1650,13 @@ CSI P s @			Insert P s (Blank) Character(s) (default = 1) (ICH)
 				else
 					DumpUnknownEscape(Code.pszEscStart, Code.nTotalLen);
 				break;
+			case 6:
+				if (Code.PvtLen == 1 && Code.Pvt[0] == L'?')
+				{
+					m_Table->OriginMode = Code.Action == L'h';
+					m_Table->SetCursor({0, m_Table->OriginMode ? static_cast<int>(m_Table->GetScrollRegion().Top) : 0});
+				}
+				break;
 			case 3:
 				m_Owner->gDisplayOpt.ShowRawAnsi = (Code.Action == L'h');
 				break;
@@ -1659,6 +1669,7 @@ CSI P s @			Insert P s (Blank) Character(s) (default = 1) (ICH)
 				//    Enables line wrapping
 				//ESC [ 7 ; _col_ h
 				//    Our extension. _col_ - wrap at column (1-based), default = 80
+				m_Table->SetAutoWrap(Code.Action == L'h');
 				if ((m_Owner->gDisplayOpt.WrapWasSet = (Code.Action == L'h')))
 				{
 					m_Owner->gDisplayOpt.WrapAt = ((Code.ArgC > 1) && (Code.ArgV[1] > 0)) ? Code.ArgV[1] : 80;
@@ -1705,6 +1716,7 @@ CSI P s @			Insert P s (Blank) Character(s) (default = 1) (ICH)
 				if (Code.PvtLen == 0)
 				{
 					/* h=Insert Mode (IRM), l=Replace Mode (IRM) */
+					m_Table->InsertMode = Code.Action == L'h';
 					// Nano posts the `ESC [ 4 l` on start, but do not post `ESC [ 4 h` on exit, that is strange...
 					DumpKnownEscape(Code.pszEscStart, Code.nTotalLen, SrvAnsi::de_Ignored); // ignored for now
 				}
@@ -2157,6 +2169,12 @@ CSI P s @			Insert P s (Blank) Character(s) (default = 1) (ICH)
 
 void SrvAnsiImpl::WriteAnsiCode_OSC(AnsiEscCode& Code)
 {
+	if (Code.cchArgSZ >= 5 && wmemcmp(Code.ArgSZ, L"133;", 4) == 0)
+	{
+		if (Code.ArgSZ[4] == L'A') m_Table->PromptPosStore();
+		return;
+	}
+
 	if (!Code.ArgSZ)
 	{
 		DumpUnknownEscape(Code.pszEscStart,Code.nTotalLen);
@@ -2194,6 +2212,30 @@ void SrvAnsiImpl::WriteAnsiCode_OSC(AnsiEscCode& Code)
 		// #condata the following is suggestion for exact palette colors
 		// #condata but are using standard xterm palette or truecolor 24bit palette
 		_ASSERTEX(Code.ArgSZ[1] == L';');
+		break;
+
+	case L'8':
+		if (Code.cchArgSZ > 2 && Code.ArgSZ[1] == L';')
+		{
+			const std::wstring value(Code.ArgSZ + 2, Code.cchArgSZ - 2);
+			const auto separator = value.find(L';');
+			if (separator != std::wstring::npos) m_Owner->SetHyperlink(value.substr(separator + 1));
+		}
+		break;
+
+	case L'7':
+		// OSC 7 reports a shell directory as a file URI.
+		if (Code.cchArgSZ > 2 && Code.ArgSZ[1] == L';')
+		{
+			const std::wstring uri(Code.ArgSZ + 2, Code.cchArgSZ - 2);
+			std::vector<wchar_t> path(32768);
+			DWORD length = static_cast<DWORD>(path.size());
+			if (SUCCEEDED(PathCreateFromUrlW(uri.c_str(), path.data(), &length, 0)))
+			{
+				SendCurrentDirectory(gState.realConWnd_, path.data());
+				m_Table->SetWorkingDirectory(path.data());
+			}
+		}
 		break;
 
 	case L'9':
@@ -2302,7 +2344,7 @@ void SrvAnsiImpl::WriteAnsiCode_OSC(AnsiEscCode& Code)
 				}
 				DoSetProgress(st, pr, pszName);
 			}
-			else if (Code.ArgSZ[2] == L'5')
+			else if (Code.ArgSZ[2] == L'5' && !m_Owner->IsConPty())
 			{
 				//int s = 0;
 				//if (Code.ArgSZ[3] == L';')
@@ -2427,6 +2469,7 @@ void SrvAnsiImpl::SetScrollRegion(bool bRegion, int nStart, int nEnd)
 	{
 		m_Table->SetScrollRegion(false);
 	}
+	m_Table->SetCursor({0, m_Table->OriginMode ? static_cast<int>(m_Table->GetScrollRegion().Top) : 0});
 }
 
 void SrvAnsiImpl::XTermSaveRestoreCursor(bool bSaveCursor)
@@ -2457,10 +2500,11 @@ void SrvAnsiImpl::XTermAltBuffer(bool bSetAltBuffer/*, condata::TablePtr& table*
 			return;
 
 		const auto attr = m_Table->GetAttr();
+		m_Owner->m_PrimaryDisplayCursor = m_Owner->gDisplayCursor;
+		m_Owner->gDisplayCursor.bCursorPosStored = false;
 		m_Table = m_Owner->GetTable(SrvAnsi::GetTableEnum::alternative);
+		m_Owner->m_UsePrimary = false;
 		m_Table->Reset(attr);
-
-		// #condata Save gDisplayCursor.StoredCursorPos separately by primary/alternative
 
 	}
 	else
@@ -2471,8 +2515,8 @@ void SrvAnsiImpl::XTermAltBuffer(bool bSetAltBuffer/*, condata::TablePtr& table*
 		m_Table->Reset({});
 
 		m_Table = m_Owner->GetTable(SrvAnsi::GetTableEnum::primary);
-
-		// #condata Save gDisplayCursor.StoredCursorPos separately by primary/alternative
+		m_Owner->m_UsePrimary = true;
+		m_Owner->gDisplayCursor = m_Owner->m_PrimaryDisplayCursor;
 
 	}
 }

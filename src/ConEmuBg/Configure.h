@@ -254,6 +254,10 @@ static int ConfigureProc(int ItemNumber)
 	StartPlugin(TRUE /*НЕ считывать параметры из реестра*/);
 #ifdef FAR_UNICODE
 	InfoT->DialogFree(hDlg);
+#if FAR_UNICODE >= 2800 && (defined(_M_ARM64) || defined(__aarch64__))
+	// Registration queues painting. Redraw once the dialog no longer covers the panels.
+	InfoT->AdvControl(&guid_ConEmuBg, ACTL_REDRAWALL, 0, nullptr);
+#endif
 #endif
 	return(true);
 }

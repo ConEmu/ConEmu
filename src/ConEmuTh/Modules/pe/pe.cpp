@@ -46,7 +46,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef verc0_EXPORTS
 	#include "../ThumbSDK.h"
 	#include "../../../common/MStrSafe.h"
-	#include "../../../common/Defines.h"
+	#include "../../../common/defines.h"
 	#include "../../../common/Memory.h"
 #else
 	#define _wsprintf wsprintfW
@@ -1547,11 +1547,14 @@ void /*MPanelItem* */ CreateResource(PEData *pData, DWORD rootType, LPVOID ptrRe
 
 	//Msg("CreateResource","0");
 
+	// Numeric PE resource IDs for RT_ICON and RT_GROUP_ICON.
+	constexpr DWORD iconResource = 3;
+	constexpr DWORD groupIconResource = 14;
 	switch(rootType)
 	{
 #ifndef verc0_EXPORTS
-		case LOWORD(RT_GROUP_ICON):
-		case 0x8000 + LOWORD(RT_GROUP_ICON):
+		case groupIconResource:
+		case 0x8000 + groupIconResource:
 		//case (WORD)RT_GROUP_CURSOR:
 		//case 0x8000+(WORD)RT_GROUP_CURSOR:
 		{
@@ -1610,7 +1613,7 @@ void /*MPanelItem* */ CreateResource(PEData *pData, DWORD rootType, LPVOID ptrRe
 			}
 			return; // pChild;
 		} break;
-		case(WORD)RT_ICON: case 0x8000+(WORD)RT_ICON:
+	case iconResource: case 0x8000 + iconResource:
 		{
 			//_tcscpy(szType, _T("ICON"));
 			if (!ValidateMemory(pData, ptrRes, resSize))
@@ -2519,7 +2522,7 @@ bool DumpFile(PEData *pData, LPBYTE pFileData, __int64 nFileSize/*mapped*/, __in
 
 #ifndef verc0_EXPORTS
 
-BOOL WINAPI CET_Init(struct CET_Init* pInit)
+extern "C" BOOL WINAPI CET_Init(struct CET_Init* pInit)
 {
 	HeapInitialize();
 	_ASSERTE(pInit->cbSize >= sizeof(struct CET_Init));
@@ -2536,7 +2539,7 @@ BOOL WINAPI CET_Init(struct CET_Init* pInit)
 	return TRUE;
 }
 
-VOID WINAPI CET_Done(struct CET_Init* pInit)
+extern "C" VOID WINAPI CET_Done(struct CET_Init* pInit)
 {
 	HeapDeinitialize();
 }
@@ -2545,7 +2548,7 @@ VOID WINAPI CET_Done(struct CET_Init* pInit)
 #define SETERROR(n) if (pLoadPreview) pLoadPreview->nErrNumber = n;
 
 
-BOOL WINAPI CET_Load(struct CET_LoadInfo* pLoadPreview)
+extern "C" BOOL WINAPI CET_Load(struct CET_LoadInfo* pLoadPreview)
 {
 	if (!pLoadPreview || *((LPDWORD)pLoadPreview) != sizeof(struct CET_LoadInfo))
 	{
@@ -2675,7 +2678,7 @@ BOOL WINAPI CET_Load(struct CET_LoadInfo* pLoadPreview)
 	return lbRc;
 }
 
-VOID WINAPI CET_Free(struct CET_LoadInfo* pLoadPreview)
+extern "C" VOID WINAPI CET_Free(struct CET_LoadInfo* pLoadPreview)
 {
 	if (!pLoadPreview || *((LPDWORD)pLoadPreview) != sizeof(struct CET_LoadInfo))
 	{
@@ -2697,7 +2700,7 @@ VOID WINAPI CET_Free(struct CET_LoadInfo* pLoadPreview)
 	}
 }
 
-VOID WINAPI CET_Cancel(LPVOID pContext)
+extern "C" VOID WINAPI CET_Cancel(LPVOID pContext)
 {
 }
 

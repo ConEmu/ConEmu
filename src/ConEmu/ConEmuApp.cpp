@@ -805,6 +805,8 @@ void PatchMsgBoxIcon(HWND hWnd, UINT messg, WPARAM wParam, LPARAM lParam)
 			{
 				// Reset immediately, to avoid stack overflow
 				ghDlgPendingFrom = nullptr;
+				if (gpConEmu && CDwmHelper::IsWindowsDarkMode())
+					gpConEmu->EnableDarkCaption(hFore);
 				// And patch the icon
 				SendMessage(hFore, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(hClassIcon));
 				SendMessage(hFore, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(hClassIconSm));
@@ -1999,7 +2001,7 @@ void AssertBox(LPCTSTR szText, LPCTSTR szFile, const UINT nLine, LPEXCEPTION_POI
 					L"\r\n" L"Please Zip it and send to developer (via DropBox etc.)\r\n",
 					CEREPORTCRASH /* https://conemu.github.io/en/Issues.html... */)
 				: CEStr();
-			dumpMessage = CEStr(dumpInfo.fullInfo, fileMsg);
+			dumpMessage = CEStr(dumpInfo.fullInfo, fileMsg.c_str());
 			const CEStr clipMessage(L"```\r\n", szFull, L"\r\n```\r\n\r\n", dumpMessage);
 			CopyToClipboard(
 				!clipMessage.IsEmpty() ? clipMessage.c_str() :

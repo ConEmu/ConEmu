@@ -1,0 +1,24 @@
+Security and process-lifetime changes (2026-11-08)
+
+All changes are shared by ARM64, x86 and x64 unless stated otherwise.
+
+- Disable terminal title echoback (CSI 21 t); retain title setting. Avoid narrowing Unicode characters before filtering terminal responses.
+- Validate input record counts, IPC message sizes/version and GUI macro/new-command string boundaries. Reject remote pipe clients, anonymous/different-user callers and lower-integrity callers to GUI control pipes. Limit pipe ACLs to the current process user and SYSTEM.
+- Use actual console-process enumeration counts and retry capacity changes instead of reading uninitialized/out-of-bounds entries.
+- Bound and cancel ConPTY input writes. Preserve child exit status when output closes before the child exits.
+- Monitor GUI/server lifetime with process handles. End orphaned ConPTY sessions and avoid a helper waiting for Enter after its GUI disappears.
+- Restrict local OSC 8 file links to canonical drive paths; reject encoded slash/backslash UNC disguises.
+
+Validation on Windows ARM64 (Intel binaries under emulation):
+Per architecture: 22 history checks, 10 real process-lifecycle scenarios, 8 real-GUI IPC checks and 9 pipe-security checks passed. Abrupt GUI termination left no tracked child processes (about 3.4 seconds). Guard-page packet probes, Unicode response probes, process-count probes, bounded writes and 50 broken-pipe cycles passed without pipe/event handle growth.
+Additional regressions: 34 Far scrollback checks across all architectures and 12 Intel legacy-hook/ConPTY mode checks passed.
+
+Compatibility and limits:
+- Cross-user control and lower-integrity control of elevated GUI pipes are intentionally restricted. Those combinations were not interactively tested with UAC or multiple users.
+- CSI 21 t no longer reports the title, to avoid turning an untrusted title into terminal input.
+- This is a targeted review and regression suite, not a complete memory-leak or vulnerability certification. No full ASan/Application Verifier run, long soak or physical Intel hardware test was performed.
+- ARM64 optional background/lines/thumbnail binaries retain their previously validated builds; core GUI/helper/server and main Far plugin were rebuilt. Intel core, hook and Far plugins were rebuilt.
+
+References:
+https://dgl.cx/2023/09/ansi-terminal-security
+https://www.gresearch.com/news/g-research-the-terminal-escapes/

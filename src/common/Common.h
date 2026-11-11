@@ -428,6 +428,7 @@ enum TermEmulationType
 {
 	te_win32 = 0,
 	te_xterm = 1,
+	te_conpty = 2, // xterm input and session-owned RGB annotation data
 };
 
 enum TermCursorShapes

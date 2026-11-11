@@ -141,7 +141,7 @@ int WINAPI _export GetMinFarVersionW(void)
 	return MAKEFARVERSION(2,0,1765);
 }
 
-void WINAPI _export GetPluginInfoWcmn(void *piv)
+extern "C" void WINAPI _export GetPluginInfoWcmn(void *piv)
 {
 	if (gFarVersion.dwBuild>=FAR_Y2_VER)
 		FUNC_Y2(GetPluginInfoW)(piv);
@@ -345,8 +345,8 @@ INT_PTR WINAPI ProcessSynchroEventW3(void*);
 #include "../common/SetExport.h"
 ExportFunc Far3Func[] =
 {
-	{"ExitFARW", ExitFARW, ExitFARW3},
-	{"ProcessSynchroEventW", ProcessSynchroEventW, ProcessSynchroEventW3},
+	{"ExitFARW", reinterpret_cast<void*>(ExitFARW), reinterpret_cast<void*>(ExitFARW3)},
+	{"ProcessSynchroEventW", reinterpret_cast<void*>(ProcessSynchroEventW), reinterpret_cast<void*>(ProcessSynchroEventW3)},
 	{NULL}
 };
 
@@ -459,7 +459,9 @@ BOOL CheckConEmu(BOOL abSilence/*=FALSE*/)
 	//nLastCheckConEmu = GetTickCount();
 	HMODULE hConEmu = GetModuleHandle
 	                  (
-#ifdef WIN64
+#if defined(_M_ARM64) || defined(__aarch64__)
+	                      L"ConEmu.arm64.dll"
+#elif defined(WIN64)
 	                      L"ConEmu.x64.dll"
 #else
 	                      L"ConEmu.dll"
@@ -560,10 +562,16 @@ void WINAPI _export SetStartupInfoW(void *aInfo)
 	//_ASSERTE(gszRootKey!=NULL && *gszRootKey!=0);
 	ReloadResourcesW();
 	gbInfoW_OK = TRUE;
+#if defined(_M_ARM64) || defined(__aarch64__)
+	// Wait until Far has initialized its panels before restoring the view.
+	if (gFarVersion.dwBuild >= FAR_Y2_VER)
+		ExecuteInMainThread(SYNCHRO_RESTORE_PANELS);
+	else
+#endif
 	StartPlugin(FALSE);
 }
 
-HANDLE WINAPI _export OpenW(const struct OpenInfo *Info)
+extern "C" HANDLE WINAPI _export OpenW(const struct OpenInfo *Info)
 {
 	HANDLE hResult = NULL;
 
@@ -1285,6 +1293,21 @@ void ResetUngetBuffer()
 	//gnUngetCount = 0;
 	//gbWaitForKeySequenceEnd = false;
 }
+
+#if defined(_M_ARM64) || defined(__aarch64__)
+void RefreshPanelViewsAfterInput()
+{
+	if (!pviLeft.hView && !pviRight.hView)
+		return;
+
+	gnConsoleChanges |= 3;
+	if (!gbConsoleChangesSyncho)
+	{
+		gbConsoleChangesSyncho = true;
+		ExecuteInMainThread(SYNCHRO_RELOAD_PANELS);
+	}
+}
+#endif
 
 // Должен активироваться или через Synchro или через PeekConsoleInput в FAR1
 void OnReadyForPanelsReload()
@@ -2114,6 +2137,13 @@ bool CheckWindows()
 	if (gbFarPanelsReady != lbFarPanels)
 		gbFarPanelsReady = lbFarPanels;
 
+#if defined(_M_ARM64) || defined(__aarch64__)
+	// Far 3 reports the active window directly. On ARM64 the region detector
+	// does not receive the console output hook used by the legacy check.
+	if (gFarVersion.dwBuild >= FAR_Y2_VER)
+		return lbFarPanels;
+#endif
+
 	// Теперь, если API сказало, что панели есть и активны
 	if (lbFarPanels && gpRgnDetect)
 	{
@@ -2217,7 +2247,7 @@ void ExecuteInMainThread(ConEmuThSynchroArg* pCmd)
 {
 	if (!pCmd) return;
 
-	if (pCmd != SYNCHRO_REDRAW_PANEL && pCmd != SYNCHRO_RELOAD_PANELS)
+	if (pCmd != SYNCHRO_REDRAW_PANEL && pCmd != SYNCHRO_RELOAD_PANELS && pCmd != SYNCHRO_RESTORE_PANELS)
 	{
 		if (gpLastSynchroArg && gpLastSynchroArg != pCmd)
 		{
@@ -2267,7 +2297,11 @@ int ProcessSynchroEventCommon(int Event, void *Param)
 	DWORD nPrevID = gnMainThreadId;
 	gnMainThreadId = GetCurrentThreadId();
 
-	if (Param == SYNCHRO_REDRAW_PANEL)
+	if (Param == SYNCHRO_RESTORE_PANELS)
+	{
+		StartPlugin(FALSE);
+	}
+	else if (Param == SYNCHRO_REDRAW_PANEL)
 	{
 		DEBUGSTRCTRL(L"ProcessSynchroEventW(SYNCHRO_REDRAW_PANEL)\n");
 		gbSynchoRedrawPanelRequested = false;

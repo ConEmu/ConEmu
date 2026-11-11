@@ -30,6 +30,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <limits>
 #include "ConEmuPipeMode.h"
+#include "MSecurity.h"
 #include "CmdLine.h" // required for PointToName
 
 #ifdef _DEBUG
@@ -533,6 +534,11 @@ struct PipeServer
 			}
 			
 			cbWholeSize = In[0];
+			const DWORD minimum = sizeof(T) == sizeof(MSG64) ? sizeof(MSG64) : sizeof(CESERVER_REQ_HDR);
+			// Bound allocation before trusting the wire length. This also rejects
+			// header-only/truncated input records before dispatch.
+			if (cbWholeSize < minimum || cbWholeSize > 64u * 1024 * 1024 || cbWholeSize < cbRead)
+				return FALSE;
 
 			PLOG("PipeServerRead.Alloc");
 			if (cbWholeSize <= cbRead)
@@ -629,6 +635,9 @@ struct PipeServer
 				pPipe->cbReadSize = (DWORD)(ptrData - ((LPBYTE)pIn));
 			}
 
+			if (pPipe->cbReadSize != cbWholeSize) return FALSE;
+			if (sizeof(T) != sizeof(MSG64)
+				&& reinterpret_cast<CESERVER_REQ_HDR*>(pIn)->nVersion != CESERVER_REQ_VER) return FALSE;
 			PLOG("PipeServerRead.OK");
 			return TRUE;
 		}
@@ -745,7 +754,7 @@ struct PipeServer
 					DWORD dwPipeMode =
 						CE_PIPE_TYPE |         // message type pipe
 						CE_PIPE_READMODE |     // message-read mode
-						PIPE_WAIT;             // Blocking mode is enabled.
+						PIPE_WAIT | 0x00000008; // PIPE_REJECT_REMOTE_CLIENTS (Vista+)
 
 					_ASSERTEX(mlp_Sec!=NULL);
 					pPipe->dwState = CREATEPIPE_STATE;
@@ -1029,14 +1038,6 @@ struct PipeServer
 				BOOL lbFirstRead = TRUE;
 				BOOL lbAllowClient = TRUE;
 				
-				if (mfn_PipeServerConnected)
-				{
-					if (!mfn_PipeServerConnected(pPipe, m_lParam))
-					{
-						lbAllowClient = FALSE; // запрет подключения от этого клиента
-					}
-				}
-				
 
 				if (lbAllowClient)
 				{
@@ -1052,6 +1053,14 @@ struct PipeServer
 						if (lbFirstRead)
 						{
 							lbFirstRead = FALSE;
+							// Impersonation authenticates the last message read, so it
+							// must happen after ReadFile, but before any command dispatch.
+							if (!IsLocalPipeClientTrusted(pPipe->hPipeInst)
+								|| (mfn_PipeServerConnected && !mfn_PipeServerConnected(pPipe, m_lParam)))
+							{
+								BreakConnection(pPipe);
+								break;
+							}
 						}
 						
 						pPipe->bBreakConnection = false;
@@ -1380,6 +1389,8 @@ struct PipeServer
 			    PipeServerReady_t apfnPipeServerReady = NULL
 		    )
 		{
+			if (!alpSec || !alpSec->lpSecurityDescriptor || !apfnPipeServerCommand)
+				return false; // Never fall back to an unintended default DACL.
 			if (mb_Initialized)
 			{
 				_ASSERTEX(mb_Initialized==FALSE);  // -V547

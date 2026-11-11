@@ -28,6 +28,8 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #define HIDE_USE_EXCEPTION_INFO
 
+#include <mutex>
+
 #include "defines.h"
 #include "Memory.h"
 #include "MAssert.h"
@@ -36,6 +38,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 class MNullDesc;
 
 MNullDesc *gNullDesc = NULL;
+static std::mutex securityMutex;
 
 
 class MNullDesc
@@ -249,14 +252,21 @@ public:
 		
 		SECURITY_ATTRIBUTES* lpSec = NULL;
 		BYTE NetworkSid[12] = {01,01,00,00,00,00,00,05,02,00,00,00};
-		BYTE SidWorld[12]   = {01,01,00,00,00,00,00,01,00,00,00,00};
+		BYTE SidSystem[12]  = {01,01,00,00,00,00,00,05,18,00,00,00};
 		PSID pNetworkSid = (PSID)NetworkSid;
-		PSID pSidWorld = (PSID)SidWorld;
+		PSID pSidSystem = (PSID)SidSystem;
+		alignas(TOKEN_USER) BYTE user[sizeof(TOKEN_USER) + SECURITY_MAX_SID_SIZE] = {};
+		HANDLE token = nullptr;
+		DWORD userSize = 0;
+		PSID pSidUser = nullptr;
 		DWORD dwSize = 0;
 
 		if (!LoadAdvApi())
 			goto wrap;
-		
+		if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) goto wrap;
+		if (!GetTokenInformation(token, TokenUser, user, sizeof(user), &userSize)) goto wrap;
+		pSidUser = reinterpret_cast<TOKEN_USER*>(user)->User.Sid;
+
 		mp_LocalDesc = (PSECURITY_DESCRIPTOR) LocalAlloc(LPTR,
 		               SECURITY_DESCRIPTOR_MIN_LENGTH);
 
@@ -279,10 +289,11 @@ public:
 
 		dwSize = sizeof(ACL) //-V104 //-V119 //-V103
 		         + sizeof(ACCESS_DENIED_ACE) + GetLengthSid(pNetworkSid)
-		         + sizeof(ACCESS_ALLOWED_ACE) + GetLengthSid(pSidWorld);
+		         + sizeof(ACCESS_ALLOWED_ACE) + GetLengthSid(pSidUser)
+		         + sizeof(ACCESS_ALLOWED_ACE) + GetLengthSid(pSidSystem);
 		mp_ACL = (PACL)LocalAlloc(LPTR, dwSize); //-V106
 
-		if (!InitializeAcl(mp_ACL, dwSize, ACL_REVISION))
+		if (!mp_ACL || !InitializeAcl(mp_ACL, dwSize, ACL_REVISION))
 		{
 			#ifdef _DEBUG
 			mn_LastError = GetLastError();
@@ -298,7 +309,8 @@ public:
 			goto wrap;
 		}
 
-		if (!AddAccessAllowedAce(mp_ACL, ACL_REVISION, GENERIC_ALL, pSidWorld))
+		if (!AddAccessAllowedAce(mp_ACL, ACL_REVISION, GENERIC_ALL, pSidUser)
+			|| !AddAccessAllowedAce(mp_ACL, ACL_REVISION, GENERIC_ALL, pSidSystem))
 		{
 			#ifdef _DEBUG
 			mn_LastError = GetLastError();
@@ -321,6 +333,12 @@ public:
 		m_LocalSecurity.bInheritHandle = FALSE; //111122 - установка Inherit на пайпы приводит к неприятным результатам (хэндл пайпа не закрывается)
 		lpSec = &m_LocalSecurity;
 	wrap:
+		if (token) CloseHandle(token);
+		if (!lpSec)
+		{
+			LocalFree(mp_LocalDesc); mp_LocalDesc = nullptr;
+			LocalFree(mp_ACL); mp_ACL = nullptr;
+		}
 		UnloadAdvApi();
 		return lpSec;
 	};
@@ -331,6 +349,7 @@ public:
 #ifndef CONEMU_MINIMAL
 SECURITY_ATTRIBUTES* NullSecurity()
 {
+	std::lock_guard<std::mutex> lock(securityMutex);
 	if (!gNullDesc) gNullDesc = new MNullDesc();
 
 	return gNullDesc->NullSecurity();
@@ -339,6 +358,7 @@ SECURITY_ATTRIBUTES* NullSecurity()
 
 SECURITY_ATTRIBUTES* LocalSecurity()
 {
+	std::lock_guard<std::mutex> lock(securityMutex);
 	if (!gNullDesc) gNullDesc = new MNullDesc();
 
 	return gNullDesc->LocalSecurity();
@@ -347,9 +367,52 @@ SECURITY_ATTRIBUTES* LocalSecurity()
 
 void ShutdownSecurity()
 {
+	std::lock_guard<std::mutex> lock(securityMutex);
 	if (gNullDesc)
 	{
 		delete gNullDesc;
 		gNullDesc = NULL;
 	}
+}
+
+namespace {
+struct PipeIdentity
+{
+	BYTE sid[SECURITY_MAX_SID_SIZE];
+	DWORD integrity = 0;
+};
+
+bool ReadPipeIdentity(HANDLE token, PipeIdentity& identity)
+{
+	alignas(TOKEN_USER) BYTE user[sizeof(TOKEN_USER) + SECURITY_MAX_SID_SIZE] = {};
+	alignas(TOKEN_MANDATORY_LABEL) BYTE label[sizeof(TOKEN_MANDATORY_LABEL) + SECURITY_MAX_SID_SIZE] = {};
+	DWORD size = 0;
+	if (!GetTokenInformation(token, TokenUser, user, sizeof(user), &size)
+		|| !CopySid(sizeof(identity.sid), identity.sid, reinterpret_cast<TOKEN_USER*>(user)->User.Sid)
+		|| !GetTokenInformation(token, TokenIntegrityLevel, label, sizeof(label), &size)) return false;
+	const PSID sid = reinterpret_cast<TOKEN_MANDATORY_LABEL*>(label)->Label.Sid;
+	const auto count = *GetSidSubAuthorityCount(sid);
+	if (!count) return false;
+	identity.integrity = *GetSidSubAuthority(sid, count - 1);
+	return true;
+}
+}
+
+bool IsLocalPipeClientTrusted(HANDLE pipe, bool requireIntegrity)
+{
+	HANDLE token = nullptr;
+	PipeIdentity client = {}, server = {};
+	if (!ImpersonateNamedPipeClient(pipe)) return false;
+	const bool opened = OpenThreadToken(GetCurrentThread(), TOKEN_QUERY, TRUE, &token) != FALSE;
+	const bool readClient = opened && ReadPipeIdentity(token, client);
+	if (token) CloseHandle(token);
+	const bool reverted = RevertToSelf() != FALSE;
+	if (!reverted) TerminateProcess(GetCurrentProcess(), ERROR_ACCESS_DENIED);
+	if (!readClient || !reverted) return false;
+	token = nullptr;
+	if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) return false;
+	const bool readServer = ReadPipeIdentity(token, server);
+	CloseHandle(token);
+	return readServer && (EqualSid(client.sid, server.sid) || IsWellKnownSid(client.sid, WinLocalSystemSid))
+		&& (!requireIntegrity || client.integrity >= server.integrity);
 }

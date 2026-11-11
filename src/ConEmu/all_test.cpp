@@ -34,7 +34,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "../UnitTests/gtest.h"
 
 #pragma warning(disable: 4091)
-#include <ShlObj.h>
+#include <shlobj.h>
 
 #include "../common/EnvVar.h"
 #include "../common/MJsonReader.h"

@@ -30,5 +30,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 SECURITY_ATTRIBUTES* NullSecurity();
 SECURITY_ATTRIBUTES* LocalSecurity();
+// Authenticate the actual pipe client, never a PID supplied inside its packet.
+bool IsLocalPipeClientTrusted(HANDLE pipe, bool requireIntegrity = false);
 
 void ShutdownSecurity();

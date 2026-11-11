@@ -114,6 +114,7 @@ static LngPredefined gsDataHints[] = {
 	{ cbExtendUCharMap,        L"Show glyphs from selected font in ‘Unicode CharMap’ plugin (FAR2 only)" },
 	{ cbFARuseASCIIsort,       L"Hook Far string sort functions.\r\n!!!HIGHLY EXPERIMENTAL!!!" },
 	{ cbFadeInactive,          L"When ConEmu loses focus, its contents may be faded. You may specify most bright color." },
+	{ cbFarWheelScrollback, L"Scroll the output buffer instead of command history when both Far panels are hidden. Requires the main ConEmu plugin for Far and Far started with -w. Works without ConEmuHk or a Lua macro. Mouse handling in visible panels, editors and dialogs is unchanged." },
 	{ cbFarHourglass,          L"Show AppStarting mouse cursor (arrow with a small hourglass or circle) when Far is busy (not responding during long operations)" },
 	{ cbFixAltOnAltTab,        L"When You set a macro on Alt (RAlt) it can unexpectedly activates on AltTab or AltF9. This issue can be fixed by sending to console Control depress before Alt release." },
 	{ cbFixFarBorders,         L"You can specify additional font for drawing pseudographics or specified range of symbols.\r\nE.g. main - \"Consolas\", additional - \"Segoe UI\"." },

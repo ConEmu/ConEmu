@@ -33,6 +33,9 @@
     <ClInclude Include="ConEmuCD\ConAnsi.h">
       <Filter>Console</Filter>
     </ClInclude>
+    <ClInclude Include="ConEmuCD\ConPty.h">
+      <Filter>Console</Filter>
+    </ClInclude>
     <ClInclude Include="ConEmuCD\ConAnsiImpl.h">
       <Filter>Console</Filter>
     </ClInclude>
@@ -141,6 +144,9 @@
       <Filter>Automation</Filter>
     </ClCompile>
     <ClCompile Include="ConEmuCD\ConAnsi.cpp">
+      <Filter>Console</Filter>
+    </ClCompile>
+    <ClCompile Include="ConEmuCD\ConPty.cpp">
       <Filter>Console</Filter>
     </ClCompile>
     <ClCompile Include="ConEmuCD\ConAnsiImpl.cpp">

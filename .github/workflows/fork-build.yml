@@ -1,0 +1,146 @@
+name: Fork build and tests
+
+on:
+  push:
+    branches: [conemu-arm64-nohooks]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  intel:
+    if: github.repository == 'Sim-md/ConEmu'
+    name: Windows ${{ matrix.arch }}
+    runs-on: windows-2022
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86
+            platform: Win32
+            suffix: ''
+            machine: 014C
+          - arch: x64
+            platform: x64
+            suffix: '64'
+            machine: 8664
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: microsoft/setup-msbuild@v2
+      - name: Build
+        run: >
+          msbuild src/CE.sln /m:3 /v:minimal
+          '/t:ConEmu;ConEmuC;ConEmuCD;ConEmuHk;Far_ConEmuPlugin;Far_ConEmuBg;Far_ConEmuLn;Far_ConEmuTh;Far_ConEmuTh_gdi+;Far_ConEmuTh_ico;Far_ConEmuTh_pe;Tests'
+          /p:Configuration=Release /p:Platform=${{ matrix.platform }}
+          /p:PlatformToolset=v143 /p:WindowsTargetPlatformVersion=10.0
+      - name: Run unit tests and verify GUI architecture
+        run: |
+          & "./Release/Tests_Release_${{ matrix.platform }}.exe"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $bytes = [IO.File]::ReadAllBytes((Resolve-Path './Release/ConEmu${{ matrix.suffix }}.exe').Path)
+          $machine = '{0:X4}' -f [BitConverter]::ToUInt16($bytes, [BitConverter]::ToInt32($bytes, 60) + 4)
+          if ($machine -ne '${{ matrix.machine }}') { throw "Unexpected PE machine: $machine" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.arch }}
+          path: |
+            Release/ConEmu${{ matrix.suffix }}.exe
+            Release/ConEmu/ConEmuC${{ matrix.suffix }}.exe
+            Release/ConEmu/ConEmuCD${{ matrix.suffix }}.dll
+            Release/ConEmu/ConEmuHk${{ matrix.suffix }}.dll
+            Release/plugins/ConEmu/**/*.dll
+            Release/plugins/ConEmu/**/*.t32
+            Release/plugins/ConEmu/**/*.t64
+          if-no-files-found: error
+          retention-days: 7
+
+  arm64:
+    if: github.repository == 'Sim-md/ConEmu'
+    name: Build Windows ARM64
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - name: Install LLVM-MinGW
+        run: |
+          archive=llvm-mingw-20261104-ucrt-ubuntu-22.04-aarch64.tar.xz
+          curl --fail --location --retry 3 -o "$RUNNER_TEMP/$archive" "https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/$archive"
+          echo "595e95bdffabfc62559fe26e30bdfbccf277cbaed4902793555015ee47306b94  $RUNNER_TEMP/$archive" | sha256sum --check
+          mkdir "$RUNNER_TEMP/llvm-mingw"
+          tar -xf "$RUNNER_TEMP/$archive" --strip-components=1 -C "$RUNNER_TEMP/llvm-mingw"
+          echo "$RUNNER_TEMP/llvm-mingw/bin" >> "$GITHUB_PATH"
+      - name: Build ConEmu and Far plugins
+        run: sh build-arm64.sh
+      - name: Build ConPTY tests
+        run: |
+          mkdir -p Release-arm64/tests
+          sources=src/UnitTests/ConPty
+          aarch64-w64-mingw32-clang++ -std=c++17 -O1 -static "$sources/ConPtyInput_test.cpp" -o Release-arm64/tests/Input.exe -lole32
+          aarch64-w64-mingw32-clang++ -std=c++17 -O1 -static -municode -include crtdbg.h -Wno-c++11-narrowing "$sources/ConPtyHistory_test.cpp" -o Release-arm64/tests/History.exe
+          aarch64-w64-mingw32-clang++ -std=c++17 -O1 -static -municode "$sources/ConPtyHistoryChild.cpp" -o Release-arm64/tests/HistoryChild.exe
+          tar -cf "$RUNNER_TEMP/arm64-ci.tar" -C Release-arm64 package tests
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arm64-ci
+          path: ${{ runner.temp }}/arm64-ci.tar
+          if-no-files-found: error
+          retention-days: 7
+
+  arm64-tests:
+    name: Test Windows ARM64
+    needs: arm64
+    runs-on: windows-11-arm
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: arm64-ci
+      - name: Run ConPTY regressions
+        run: |
+          tar -xf arm64-ci.tar
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & ./tests/Input.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $prefix = Join-Path $env:RUNNER_TEMP 'conpty-history'
+          & ./tests/History.exe (Resolve-Path './package/ConEmu/ConEmuC64.exe').Path (Resolve-Path './tests/HistoryChild.exe').Path $prefix
+          $result = $LASTEXITCODE
+          Get-Content "$prefix.report"
+          if ($result -ne 0) { exit $result }
+
+  release:
+    if: github.repository == 'Sim-md/ConEmu' && github.ref == 'refs/heads/conemu-arm64-nohooks'
+    needs: [intel, arm64-tests]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Package and verify all three ZIPs
+        run: |
+          mkdir -p artifacts/arm64
+          tar -xf artifacts/arm64-ci/arm64-ci.tar -C artifacts/arm64 package
+          python3 .github/scripts/package-fork-release.py artifacts dist "$GITHUB_SHA"
+      - name: Publish prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="ci-${GITHUB_SHA:0:7}-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          gh release create "$tag" --target "$GITHUB_SHA" --draft --prerelease --latest=false \
+            --title "ConEmu CI build ${GITHUB_SHA:0:7}" \
+            --notes "ARM64, x86 and x64 builds from $GITHUB_SHA. All jobs passed in $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID. SHA-256 sums are in SHA256SUMS.txt."
+          gh release upload "$tag" dist/*.zip dist/SHA256SUMS.txt
+          gh release edit "$tag" --draft=false --prerelease --latest=false

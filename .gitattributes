@@ -62,3 +62,7 @@
 #*.PDF   diff=astextplain
 #*.rtf   diff=astextplain
 #*.RTF   diff=astextplain
+
+# Shell integration must also be sourceable after Windows checkouts.
+*.bash text eol=lf
+src/UnitTests/ConPty/*.sh text eol=lf

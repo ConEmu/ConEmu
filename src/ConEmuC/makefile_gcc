@@ -37,4 +37,8 @@ SRCS = \
 		ConEmuC.cpp                  \
 		Downloader.cpp
 
+ifeq ($(ARM64),1)
+SRCS += ../common/CmdArg.cpp
+endif
+
 include ../makefile_gcc_target

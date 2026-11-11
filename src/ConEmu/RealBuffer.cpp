@@ -1,4 +1,4 @@
-﻿
+
 //TODO: Нотация.
 //TODO: XXX       - вернуть значение переменной, возможно скорректировав ее
 //TODO: GetXXX    - вернуть значение переменной
@@ -69,6 +69,8 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "VirtualConsole.h"
 
 #include <cmath>
+#include <map>
+#include <set>
 
 #define DEBUGSTRSIZE(s) //DEBUGSTR(s)
 #define DEBUGSTRSIZE2(s) DEBUGSTR(s) // Warning level
@@ -505,6 +507,19 @@ bool CRealBuffer::LoadDataFromDump(const CONSOLE_SCREEN_BUFFER_INFO& storedSbi, 
 		CharAttr *lcaTableOrg = nullptr;
 		PrepareColorTable(nullptr, nullptr, &lcaTableOrg);
 
+		std::vector<AnnotationInfo> frozenColors;
+		AnnotationHeader frameHeader = {};
+		const AnnotationInfo* frameCells = nullptr;
+		bool absoluteColors = false;
+		if (mp_RCon->IsConPty() && mp_RCon->GetColorData(frameHeader, frameCells, absoluteColors)
+			&& absoluteColors && frameHeader.bufferSize >= cchCellCount)
+		{
+			frozenColors.assign(frameCells, frameCells + cchCellCount);
+			AnnotationHeader after = {}; const AnnotationInfo* unused = nullptr; bool absolute = false;
+			if (!mp_RCon->GetColorData(after, unused, absolute) || after.flushCounter != frameHeader.flushCounter)
+				frozenColors.clear();
+		}
+
 		DWORD nMax = std::min(cchCellCount,cchMaxCellCount);
 		// Расфуговка буфера на консольные атрибуты
 		for (DWORD n = 0; n < nMax; n++, ptrSrc++, pszDst++, pcaDst++)
@@ -515,6 +530,15 @@ bool CRealBuffer::LoadDataFromDump(const CONSOLE_SCREEN_BUFFER_INFO& storedSbi, 
 			*pszDst = (ch < 32) ? gszAnalogues[(WORD)ch] : ch;
 
 			*pcaDst = lcaTableOrg[ptrSrc->Attributes & 0xFF];
+			if (n < frozenColors.size())
+			{
+				const auto& color = frozenColors[n];
+				if (color.fg_valid) pcaDst->crForeColor = color.fg_color;
+				if (color.bk_valid) pcaDst->crBackColor = color.bk_color;
+				if (color.style & AI_STYLE_REVERSE) { const unsigned fore = pcaDst->crForeColor; pcaDst->crForeColor = pcaDst->crBackColor; pcaDst->crBackColor = fore; }
+				pcaDst->nFontIndex = color.style & fnt_StdFontMask;
+			}
+
 
 			//WARNING("Похоже, что это сейчас не требуется, все равно будет перечитано");
 			//*pnaDst = ptrSrc->Attributes;
@@ -1721,6 +1745,10 @@ SHORT CRealBuffer::GetBufferPosY() const
 	}
 	#endif
 
+	// ConPTY grows its real buffer as history arrives. Use the viewport belonging
+	// to the received cells, not an older requested TopLeft from before that growth.
+	if (m_Type == rbt_Primary && mp_RCon->IsConPty())
+		return con.m_sbi.srWindow.Top;
 	return (con.TopLeft.y >= 0) ? con.TopLeft.y : con.m_sbi.srWindow.Top;
 }
 
@@ -2221,13 +2249,22 @@ bool CRealBuffer::LoadDataFromSrv(CRConDataGuard& data, DWORD CharCount, CHAR_IN
 
 bool CRealBuffer::IsTrueColorerBufferChanged()
 {
+	AnnotationHeader frameHeader = {};
+	const AnnotationInfo* frameCells = nullptr;
+	bool absolute = false;
+	if (mp_RCon->GetColorData(frameHeader, frameCells, absolute) && absolute)
+	{
+		const bool changed = mp_RCon->m_TrueColorerHeader.flushCounter != frameHeader.flushCounter;
+		mp_RCon->m_TrueColorerHeader = frameHeader;
+		return changed;
+	}
 	bool lbChanged = false;
 	AnnotationHeader aHdr;
 	int nCmp = 0;
 	int nCurMax;
 	MSectionLockSimple CS;
 
-	if (!gpSet->isTrueColorer || !mp_RCon->mp_TrueColorerData)
+	if (!mp_RCon->UseTrueColor() || !mp_RCon->mp_TrueColorerData)
 		goto wrap;
 
 	// Проверка буфера TrueColor
@@ -2769,7 +2806,7 @@ void CRealBuffer::ApplyConsoleInfo(const CESERVER_REQ* pInfo, bool& bSetApplyFin
 		#endif
 
 		// Проверка буфера TrueColor
-		if (!lbChanged && gpSet->isTrueColorer && mp_RCon->mp_TrueColorerData)
+		if (!lbChanged && mp_RCon->UseTrueColor() && mp_RCon->mp_TrueColorerData)
 		{
 			if (IsTrueColorerBufferChanged())
 			{
@@ -2972,9 +3009,17 @@ bool CRealBuffer::ProcessFarHyperlink(UINT messg, COORD crFrom, bool bUpdateScre
 
 	COORD crEnd = crStart;
 	CEStr szText;
-	ExpandTextRangeType rc = CanProcessHyperlink(crStart)
-		? ExpandTextRange(crStart, crStart, crEnd, etr_AnyClickable, &szText)
-		: etr_None;
+	ExpandTextRangeType rc = etr_None;
+	if (CanProcessHyperlink(crStart))
+	{
+		if (m_Type == rbt_Primary && mp_RCon->GetConPtyLink(crStart, szText, crStart, crEnd))
+		{
+			rc = etr_Url;
+			StoreLastTextRange(rc);
+		}
+		else
+			rc = ExpandTextRange(crStart, crStart, crEnd, etr_AnyClickable, &szText);
+	}
 	bool bChanged = con.etrWasChanged || (con.etr.etrLast != rc);
 	if (memcmp(&crStart, &con.etr.mcr_FileLineStart, sizeof(crStart)) != 0
 		|| memcmp(&crEnd, &con.etr.mcr_FileLineEnd, sizeof(crStart)) != 0)
@@ -5214,6 +5259,18 @@ bool CRealBuffer::DoSelectionCopyInt(CECopyMode CopyMode, bool bStreamMode, int 
 	int   nCharCount = GetSelectionCharCount(bStreamMode, srSelection_X1, srSelection_Y1, srSelection_X2, srSelection_Y2, &nSelWidth, &nSelHeight, nNewLineLen);
 	_ASSERTE((nSelWidth>-(srSelection_X1-srSelection_X2)) && (nSelHeight>0) && (nCharCount>0));
 
+	std::vector<ConPtyGlyph> copiedGlyphs;
+	std::map<size_t, ConPtyGlyph> glyphAt;
+	std::set<size_t> glyphTails;
+	if (mp_RCon->GetConPtyGlyphs(nTextWidth, nTextHeight, copiedGlyphs, m_Type != rbt_Primary))
+		for (const auto& glyph : copiedGlyphs)
+		{
+			const size_t index = glyph.position.Y * nTextWidth + glyph.position.X;
+			glyphAt.emplace(index, glyph);
+			for (unsigned n = 1; n < glyph.width; ++n) glyphTails.insert(index + n);
+			nCharCount += static_cast<int>(glyph.text.size());
+		}
+
 	HGLOBAL hUnicode = nullptr;
 	hUnicode = GlobalAlloc(GMEM_MOVEABLE|GMEM_ZEROINIT, (nCharCount+1)*sizeof(wchar_t));
 
@@ -5231,6 +5288,18 @@ bool CRealBuffer::DoSelectionCopyInt(CECopyMode CopyMode, bool bStreamMode, int 
 		GlobalFree(hUnicode);
 		return false;
 	}
+
+	auto appendCell = [&](LPCWSTR& source) {
+		const size_t index = source - pszDataStart;
+		const auto glyph = glyphAt.find(index);
+		if (glyph != glyphAt.end())
+		{
+			wmemcpy(pch, glyph->second.text.data(), glyph->second.text.size());
+			pch += glyph->second.text.size();
+		}
+		else if (!glyphTails.count(index)) *(pch++) = *source;
+		++source;
+	};
 
 	// Заполнить данными
 	if ((srSelection_X1 + nSelWidth) > nTextWidth)
@@ -5251,6 +5320,22 @@ bool CRealBuffer::DoSelectionCopyInt(CECopyMode CopyMode, bool bStreamMode, int 
 	const auto& pPal = mp_RCon->VCon()->GetColors();
 
 	bool bUseHtml = (nFormat != 0);
+	std::vector<wchar_t> formattedChars;
+	std::vector<CharAttr> formattedAttrs;
+	if (bUseHtml && m_Type == rbt_Primary && mp_RCon->UseTrueColor())
+	{
+		// Use the same RGB conversion as the viewport renderer for formatted copies.
+		const size_t cells = static_cast<size_t>(nTextWidth) * nTextHeight;
+		formattedChars.resize(cells);
+		formattedAttrs.resize(cells);
+		CharAttr* normal = nullptr;
+		CharAttr* extended = nullptr;
+		PrepareColorTable(pApp, &extended, &normal);
+		data->GetConsoleData(formattedChars.data(), formattedAttrs.data(), nTextWidth, nTextHeight,
+			L' ', normal[7], normal, extended, false, pApp->ExtendFonts());
+		pAttrStart = nullptr;
+		pAttrStartEx = formattedAttrs.data();
+	}
 
 	CFormatCopy* html = nullptr;
 
@@ -5280,7 +5365,26 @@ bool CRealBuffer::DoSelectionCopyInt(CECopyMode CopyMode, bool bStreamMode, int 
 	}
 
 
-	TODO("Переделать на GetConsoleLine/GetConsoleData! Иначе могут не будут работать расширенные атрибуты");
+	auto addGraphemeHtml = [&](LPCWSTR source, int count) {
+		if (glyphAt.empty() || !pAttrStartEx) return false;
+		std::wstring text;
+		std::vector<CharAttr> attrs;
+		const size_t first = source - pszDataStart;
+		for (int n = 0; n < count; ++n)
+		{
+			const size_t index = first + n;
+			const auto glyph = glyphAt.find(index);
+			if (glyph != glyphAt.end())
+			{
+				text += glyph->second.text;
+				attrs.insert(attrs.end(), glyph->second.text.size(), pAttrStartEx[index]);
+			}
+			else if (!glyphTails.count(index)) { text += source[n]; attrs.push_back(pAttrStartEx[index]); }
+		}
+		if (!text.empty()) html->LineAdd(text.data(), attrs.data(), text.size());
+		return true;
+	};
+
 	if (!bStreamMode)
 	{
 		// Блоковое выделение
@@ -5309,7 +5413,7 @@ bool CRealBuffer::DoSelectionCopyInt(CECopyMode CopyMode, bool bStreamMode, int 
 
 				for (int X = 0; X <= nMaxX; X++)
 				{
-					*(pch++) = *(pszCon++);
+					appendCell(pszCon);
 				}
 
 				if (nTrimTailing == 1)
@@ -5323,7 +5427,8 @@ bool CRealBuffer::DoSelectionCopyInt(CECopyMode CopyMode, bool bStreamMode, int 
 				if (bUseHtml)
 				{
 					INT_PTR nLineStart = pszSrcStart - pszDataStart;
-					if ((m_Type == rbt_Primary) && pAttrStart)
+					if (addGraphemeHtml(pszSrcStart, nSelWidth)) {}
+					else if ((m_Type == rbt_Primary) && pAttrStart)
 						html->LineAdd(pszSrcStart, pAttrStart+nLineStart, pPal, nSelWidth);
 					else if (pAttrStartEx)
 						html->LineAdd(pszSrcStart, pAttrStartEx+nLineStart, nSelWidth);
@@ -5384,14 +5489,15 @@ bool CRealBuffer::DoSelectionCopyInt(CECopyMode CopyMode, bool bStreamMode, int 
 			{
 				for (int X = nX1; X <= nX2; X++)
 				{
-					*(pch++) = *(pszCon++);
+					appendCell(pszCon);
 				}
 
 				if (bUseHtml)
 				{
 					INT_PTR nLineStart = pszSrcStart - pszDataStart;
-					INT_PTR nLineLen = pch - pszDstStart;
-					if ((m_Type == rbt_Primary) && pAttrStart)
+					INT_PTR nLineLen = nX2 - nX1 + 1;
+					if (addGraphemeHtml(pszSrcStart, nLineLen)) {}
+					else if ((m_Type == rbt_Primary) && pAttrStart)
 						html->LineAdd(pszSrcStart, pAttrStart+nLineStart, pPal, nLineLen);
 					else if (pAttrStartEx)
 						html->LineAdd(pszSrcStart, pAttrStartEx+nLineStart, nLineLen);

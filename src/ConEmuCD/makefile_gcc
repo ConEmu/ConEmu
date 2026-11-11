@@ -12,14 +12,19 @@
 NAME = ConEmuCD
 EXT = dll
 RELEASESUBDIR = /ConEmu
+ifeq ($(ARM64),1)
+DEF = export.def
+USERCPP = -D DLL_CONEMUCD_EXPORTS
+else
 DEF = export.gcc.def
 USERCPP =
+endif
 LNKPLATFORM = -mconsole
 BASEADDRESS =
 
 include ../makefile_gcc_inc
 
-USERLIBS += -ladvapi32 -lgdi32 -lshell32 -lshlwapi -loleaut32 -lwinmm
+USERLIBS += -ladvapi32 -lgdi32 -lshell32 -lshlwapi -lole32 -loleaut32 -lwinmm
 
 SRCS = \
 		../common/CEStr.cpp         \
@@ -68,6 +73,7 @@ SRCS = \
 		../ConEmuHk/Injects.cpp      \
 		Actions.cpp        \
 		ConAnsi.cpp        \
+		ConPty.cpp         \
 		ConAnsiImpl.cpp    \
 		ConData.cpp        \
 		ConEmuCmd.cpp      \
@@ -89,5 +95,9 @@ SRCS = \
 		SrvPipes.cpp       \
 		StartEnv.cpp       \
 		UnicodeTest.cpp
+
+ifeq ($(ARM64),1)
+SRCS += ../common/MEvent.cpp ../common/CmdArg.cpp ../common/WRegistry.cpp ConsoleArgs.cpp ConsoleState.cpp DumpOnException.cpp RunMode.cpp StdCon.cpp WorkerBase.cpp
+endif
 
 include ../makefile_gcc_target

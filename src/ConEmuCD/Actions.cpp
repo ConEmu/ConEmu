@@ -46,6 +46,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "../common/MStrDup.h"
 #include "../common/ProcessData.h"
 #include "../common/WFiles.h"
+#include "../common/WConsole.h"
 #include "../common/WUser.h"
 #include "../common/MWnd.h"
 #include "../ConEmuHk/Injects.h"
@@ -59,6 +60,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "InjectRemote.h"
 #include "MapDump.h"
 #include "UnicodeTest.h"
+#include "ConPty.h"
 
 
 // ConEmuC -OsVerInfo
@@ -377,7 +379,7 @@ int DoInjectRemote(const CEStr& asCmdArg, bool abDefTermOnly)
 		swprintf_c(szTitle, L"ConEmuC, PID=%u", GetCurrentProcessId());
 		swprintf_c(szDbgMsg, L"ConEmuC.X, PID=%u\nCmdLine parsing FAILED (%u)!\n%s",
 			GetCurrentProcessId(), nRemotePID,
-			asCmdArg);
+			asCmdArg.c_str());
 		LogString(szDbgMsg);
 		MessageBoxW(nullptr, szDbgMsg, szTitle, MB_SYSTEMMODAL);
 	}
@@ -951,6 +953,32 @@ int DoOutput(ConEmuExecAction eExecAction, LPCWSTR asCmdArg)
 namespace {
 	/// ConEmuHk is used for preprocessed ANSI output
 	static MModule ConEmuHk;
+
+	// Restore the shared console mode even if output fails.
+	class NativeAnsiOutput
+	{
+	public:
+		explicit NativeAnsiOutput(HANDLE output) : output_(output) {}
+		~NativeAnsiOutput()
+		{
+			if (changed_)
+				SetConsoleMode(output_, mode_);
+		}
+
+		void Enable()
+		{
+			if (GetConsoleMode(output_, &mode_))
+			{
+				const DWORD vtMode = mode_ | ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+				changed_ = vtMode != mode_ && SetConsoleMode(output_, vtMode);
+			}
+		}
+
+	private:
+		HANDLE output_;
+		DWORD mode_ = 0;
+		bool changed_ = false;
+	};
 };
 
 /// Write text to STD_OUT
@@ -999,6 +1027,7 @@ int WriteOutput(LPCWSTR pszText, DWORD cchLen /*= -1*/, DWORD* pdwWritten /*= nu
 		typedef BOOL (WINAPI* WriteProcessedA_t)(LPCSTR lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, UINT Stream);
 		static WriteProcessed_t WriteProcessed = nullptr;
 		static WriteProcessedA_t WriteProcessedA = nullptr;
+#if !defined(__aarch64__) && !defined(_M_ARM64)
 		if (bProcessed && (!WriteProcessed || !WriteProcessedA))
 		{
 			//_ASSERTE(FALSE && "Continue to load ConEmuHk");
@@ -1031,6 +1060,11 @@ int WriteOutput(LPCWSTR pszText, DWORD cchLen /*= -1*/, DWORD* pdwWritten /*= nu
 		{
 			LogString(L"WriteOutput: using WriteConsole because no escape sequences were found");
 		}
+#endif
+
+		NativeAnsiOutput nativeAnsi(hOut);
+		if (bProcessed && !(bAsciiPrint ? WriteProcessedA != nullptr : WriteProcessed != nullptr))
+			nativeAnsi.Enable();
 
 		// If possible - use processed (with ANSI support) output via WriteProcessed[A] function
 
@@ -1134,6 +1168,8 @@ int DoExecAction(const ConEmuExecAction eExecAction, LPCWSTR asCmdArg /* rest of
 
 	switch (eExecAction)
 	{
+	case ConEmuExecAction::ConPty:
+		return RunConPty(asCmdArg);
 	case ConEmuExecAction::RegConFont:
 		{
 			LogString(L"DoExecAction: ea_RegConFont");

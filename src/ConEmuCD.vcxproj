@@ -284,6 +284,7 @@
   <ItemGroup>
     <ClInclude Include="ConEmuCD\Actions.h" />
     <ClInclude Include="ConEmuCD\ConAnsi.h" />
+    <ClInclude Include="ConEmuCD\ConPty.h" />
     <ClInclude Include="ConEmuCD\ConAnsiImpl.h" />
     <ClInclude Include="ConEmuCD\ConData.h" />
     <ClInclude Include="ConEmuCD\ConEmuCmd.h" />
@@ -322,6 +323,7 @@
   <ItemGroup>
     <ClCompile Include="ConEmuCD\Actions.cpp" />
     <ClCompile Include="ConEmuCD\ConAnsi.cpp" />
+    <ClCompile Include="ConEmuCD\ConPty.cpp" />
     <ClCompile Include="ConEmuCD\ConAnsiImpl.cpp" />
     <ClCompile Include="ConEmuCD\ConData.cpp" />
     <ClCompile Include="ConEmuCD\ConEmuCmd.cpp" />

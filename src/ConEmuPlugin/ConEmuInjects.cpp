@@ -77,6 +77,10 @@ SetConsoleCallbacks_t SetConsoleCallbacks = NULL;
 // Эту функцию нужно позвать из DllMain плагина
 bool StartupHooks(HMODULE ahOurDll)
 {
+#if defined(_M_ARM64) || defined(__aarch64__)
+	// This ARM64 build has no injection library. Keep the plugin IPC available.
+	return false;
+#else
 	WARNING("Добавить в аргументы строковый параметр - инфа об ошибке");
 
 	if (ghHooksModule == NULL)
@@ -151,6 +155,7 @@ bool StartupHooks(HMODULE ahOurDll)
 	SetFarHookMode(&gFarMode);
 
 	return true;
+#endif
 }
 
 void StartupConsoleHooks()

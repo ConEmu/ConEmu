@@ -258,6 +258,8 @@ class CSettings
 		void ShowFontErrorTip(LPCTSTR asInfo);
 		void ShowModifierErrorTip(LPCTSTR asInfo, HWND hDlg, WORD nID);
 		void ShowConFontErrorTip();
+		static void ApplySettingsTheme(HWND dialog);
+		static INT_PTR SettingsThemeBrush(UINT message, HDC dc, HWND control, bool hyperlink = false);
 	protected:
 		INT_PTR OnCtlColorStatic(HWND hDlg, HDC hdc, HWND hCtrl, WORD nCtrlId);
 		void OnResetOrReload(bool abResetOnly, SettingsStorage* pXmlStorage = nullptr);

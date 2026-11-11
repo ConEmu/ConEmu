@@ -1233,7 +1233,13 @@ void CPluginBase::ProcessEditorInputInternal(const INPUT_RECORD& Rec)
 int CPluginBase::ProcessEditorViewerEvent(int EditorEvent, int ViewerEvent)
 {
 	if (EditorEvent == ee_Redraw)
+	{
+#if defined(_M_ARM64) || defined(__aarch64__)
+		if (gpBgPlugin)
+			gpBgPlugin->OnMainThreadActivated(EditorEvent, ViewerEvent);
+#endif
 		return 0;
+	}
 
 	if (!gbRequestUpdateTabs)
 	{
@@ -1261,6 +1267,15 @@ int CPluginBase::ProcessEditorViewerEvent(int EditorEvent, int ViewerEvent)
 
 	if (gpBgPlugin && (EditorEvent != ee_Redraw))
 	{
+#if defined(_M_ARM64) || defined(__aarch64__)
+		if (EditorEvent == ee_Close || ViewerEvent == ve_Close)
+		{
+			// Far still reports the closing window in this callback.
+			gpBgPlugin->SetForceCheck();
+			ExecuteSynchroApi();
+			return 0;
+		}
+#endif
 		gpBgPlugin->OnMainThreadActivated(EditorEvent, ViewerEvent);
 	}
 
@@ -2782,6 +2797,14 @@ DWORD CPluginBase::MonitorThreadProcW(LPVOID lpParameter)
 		if (dwWait == WAIT_OBJECT_0)
 			break; // завершение плагина
 
+		// No input hook is available to request metadata refreshes in this mode.
+		// Schedule Far APIs on its main thread, including when no background plugin is enabled.
+		if (!ghHooksModule && ghConEmuWndDC && IS_SYNCHRO_ALLOWED && gnSynchroCount == 0)
+		{
+			gbNeedPostReloadFarInfo = TRUE;
+			Plugin()->ExecuteSynchro();
+		}
+
 		// Если FAR запущен в "невидимом" режиме и по истечении таймаута
 		// так и не подцепились к ConEmu - всплыть окошко консоли
 		if (lbStartedNoConEmu && ghConEmuWndDC == nullptr && FarHwnd != nullptr)
@@ -4058,7 +4081,9 @@ bool CPluginBase::ProcessCommand(DWORD nCmd, BOOL bReqMainThread, LPVOID pComman
 		}
 		// конец семафора
 
-		if (nCmd == CMD_LEFTCLKSYNC || nCmd == CMD_CLOSEQSEARCH)
+		// The console input hook signals ghConsoleInputEmpty. Without it,
+		// waiting here only delays the drag request.
+		if ((nCmd == CMD_LEFTCLKSYNC && ghHooksModule) || nCmd == CMD_CLOSEQSEARCH)
 		{
 			ResetEvent(ghConsoleInputEmpty);
 			gbWaitConsoleInputEmpty = TRUE;
@@ -4335,7 +4360,7 @@ bool CPluginBase::ReloadFarInfoApi()
 	int nArea = GetMacroArea();
 	if (nArea >= 0)
 	{
-		if (nArea == ma_Shell || nArea == ma_InfoPanel || nArea == ma_QViewPanel || nArea == ma_TreePanel || ma_Search)
+		if (nArea == ma_Shell || nArea == ma_InfoPanel || nArea == ma_QViewPanel || nArea == ma_TreePanel || nArea == ma_Search)
 			gpFarInfo->nMacroArea = fma_Panels;
 		else if (nArea == ma_Viewer)
 			gpFarInfo->nMacroArea = fma_Viewer;
@@ -4353,9 +4378,19 @@ bool CPluginBase::ReloadFarInfoApi()
 	}
 
 	gpFarInfo->bFarPanelAllowed = CheckPanelExist();
-	gpFarInfo->bFarPanelInfoFilled = FALSE;
-	gpFarInfo->bFarLeftPanel = FALSE;
-	gpFarInfo->bFarRightPanel = FALSE;
+	// Far panel APIs must run on its main thread. Keep the last valid snapshot
+	// on background refreshes; an old plugin leaves Filled false (safe fallback).
+	if (GetCurrentThreadId() == gnMainThreadId)
+	{
+		CEPanelInfo left = {}, right = {};
+		const bool valid = gpFarInfo->bFarPanelAllowed
+			&& GetPanelInfo(gpdf_Left, &left) && GetPanelInfo(gpdf_Right, &right);
+		gpFarInfo->bFarPanelInfoFilled = valid;
+		gpFarInfo->bFarLeftPanel = valid && left.bVisible;
+		gpFarInfo->bFarRightPanel = valid && right.bVisible;
+		gpFarInfo->FarLeftPanel.Visible = valid && left.bVisible;
+		gpFarInfo->FarRightPanel.Visible = valid && right.bVisible;
+	}
 
 	// -- пока, во избежание глюков в FAR при неожиданных запросах информации о панелях
 	//if (FALSE == (gpFarInfo->bFarPanelAllowed)) {

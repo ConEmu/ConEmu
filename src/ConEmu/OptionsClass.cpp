@@ -2044,6 +2044,91 @@ INT_PTR CSettings::ProcessTipHelp(HWND hWnd2, UINT messg, WPARAM wParam, LPARAM 
 	return 0;
 }
 
+static COLORREF SettingsBackground(bool field)
+{
+	return CDwmHelper::BlendColors(field ? RGB(40, 40, 40) : RGB(28, 28, 28),
+		CDwmHelper::WindowsAccentColor(), 18);
+}
+
+static BOOL CALLBACK ApplySettingsThemeToControl(HWND control, LPARAM darkParam)
+{
+	const bool useDark = darkParam != 0;
+	wchar_t cls[32] = {};
+	GetClassNameW(control, cls, countof(cls));
+	const bool tree = _wcsicmp(cls, WC_TREEVIEWW) == 0;
+	const bool list = _wcsicmp(cls, WC_LISTVIEWW) == 0;
+	const bool combo = _wcsicmp(cls, L"ComboBox") == 0 || _wcsicmp(cls, L"Edit") == 0;
+	const bool button = _wcsicmp(cls, L"Button") == 0;
+	const bool hotkey = _wcsicmp(cls, HOTKEY_CLASSW) == 0;
+	const bool tabs = _wcsicmp(cls, WC_TABCONTROLW) == 0;
+	const bool listBox = _wcsicmp(cls, L"ListBox") == 0;
+	const bool scrollingEdit = _wcsicmp(cls, L"Edit") == 0
+		&& (GetWindowLongPtr(control, GWL_STYLE) & (WS_HSCROLL | WS_VSCROLL));
+	const bool modernTheme = gOSVer.dwBuildNumber >= 26300;
+	if (tree || list || combo || button || hotkey || listBox || tabs
+		|| _wcsicmp(cls, L"ScrollBar") == 0 || _wcsicmp(cls, TRACKBAR_CLASSW) == 0)
+	{
+		LPCWSTR theme = nullptr;
+		if (useDark)
+		{
+			theme = combo ? L"DarkMode_CFD" : L"DarkMode_Explorer";
+			if (modernTheme && (button || hotkey || listBox || scrollingEdit || tabs))
+				theme = L"DarkMode_DarkTheme";
+		}
+		gpConEmu->SetWindowTheme(control, theme, nullptr);
+	}
+
+	const auto bg = useDark ? SettingsBackground(true) : GetSysColor(COLOR_WINDOW);
+	const auto fg = useDark ? RGB(240, 240, 240) : GetSysColor(COLOR_WINDOWTEXT);
+	if (tree)
+	{
+		TreeView_SetBkColor(control, bg);
+		TreeView_SetTextColor(control, fg);
+		TreeView_SetLineColor(control, useDark ? RGB(128, 128, 128) : CLR_DEFAULT);
+	}
+	if (list)
+	{
+		ListView_SetBkColor(control, bg);
+		ListView_SetTextBkColor(control, bg);
+		ListView_SetTextColor(control, fg);
+		if (const auto header = ListView_GetHeader(control))
+			gpConEmu->SetWindowTheme(header, useDark
+				? (modernTheme ? L"DarkMode_DarkTheme" : L"DarkMode_ItemsView") : nullptr, nullptr);
+	}
+	return TRUE;
+}
+
+void CSettings::ApplySettingsTheme(HWND dialog)
+{
+	gpConEmu->ApplyPopupMenuTheme(dialog);
+	const bool dark = CDwmHelper::IsWindowsDarkMode();
+	if (dark && (GetWindowLongPtr(dialog, GWL_STYLE) & (WS_CHILD | WS_CAPTION)) == WS_CAPTION)
+		gpConEmu->EnableDarkCaption(dialog);
+	EnumChildWindows(dialog, ApplySettingsThemeToControl, dark);
+	RedrawWindow(dialog, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
+}
+
+INT_PTR CSettings::SettingsThemeBrush(UINT message, HDC dc, HWND control, bool hyperlink)
+{
+	if (!CDwmHelper::IsWindowsDarkMode())
+		return 0;
+
+	bool field = (message == WM_CTLCOLOREDIT || message == WM_CTLCOLORLISTBOX);
+	if (message == WM_CTLCOLORSTATIC && control)
+	{
+		wchar_t cls[16] = {};
+		GetClassNameW(control, cls, countof(cls));
+		field = _wcsicmp(cls, L"Edit") == 0;
+	}
+	const auto bg = SettingsBackground(field);
+	SetTextColor(dc, hyperlink ? RGB(134, 193, 255)
+		: control && !IsWindowEnabled(control) ? RGB(157, 157, 157) : RGB(240, 240, 240));
+	SetBkColor(dc, bg);
+	SetBkMode(dc, field ? OPAQUE : TRANSPARENT);
+	SetDCBrushColor(dc, bg);
+	return reinterpret_cast<INT_PTR>(GetStockObject(DC_BRUSH));
+}
+
 // DlgProc для окна настроек (IDD_SETTINGS)
 INT_PTR CSettings::wndOpProc(HWND hWnd2, UINT messg, WPARAM wParam, LPARAM lParam)
 {
@@ -2075,6 +2160,11 @@ INT_PTR CSettings::wndOpProc(HWND hWnd2, UINT messg, WPARAM wParam, LPARAM lPara
 
 			SetClassLongPtr(hWnd2, GCLP_HICON, reinterpret_cast<LONG_PTR>(hClassIcon));
 			gpSetCls->OnInitDialog();
+			ApplySettingsTheme(hWnd2);
+			break;
+
+		case WM_SETTINGCHANGE:
+			ApplySettingsTheme(hWnd2);
 			break;
 
 		case WM_SYSCOMMAND:
@@ -2092,7 +2182,19 @@ INT_PTR CSettings::wndOpProc(HWND hWnd2, UINT messg, WPARAM wParam, LPARAM lPara
 			break;
 
 		case WM_CTLCOLORSTATIC:
-			return gpSetCls->OnCtlColorStatic(hWnd2, reinterpret_cast<HDC>(wParam), reinterpret_cast<HWND>(lParam), LOWORD(GetDlgCtrlID(reinterpret_cast<HWND>(lParam))));
+		{
+			const auto dc = reinterpret_cast<HDC>(wParam);
+			const auto control = reinterpret_cast<HWND>(lParam);
+			const auto id = LOWORD(GetDlgCtrlID(control));
+			if (const auto brush = gpSetCls->OnCtlColorStatic(hWnd2, dc, control, id))
+				return brush;
+			return SettingsThemeBrush(messg, dc, control);
+		}
+		case WM_CTLCOLORDLG:
+		case WM_CTLCOLOREDIT:
+		case WM_CTLCOLORLISTBOX:
+		case WM_CTLCOLORBTN:
+			return SettingsThemeBrush(messg, reinterpret_cast<HDC>(wParam), reinterpret_cast<HWND>(lParam));
 
 		case WM_SETCURSOR:
 			if (CDlgItemHelper::isHyperlinkCtrl(LOWORD(GetDlgCtrlID(reinterpret_cast<HWND>(wParam)))))
@@ -2317,6 +2419,8 @@ INT_PTR CSettings::OnCtlColorStatic(HWND hDlg, HDC hdc, HWND hCtrl, WORD nCtrlId
 		if (!(nStyle & SS_NOTIFY))
 			SetWindowLong(hCtrl, GWL_STYLE, nStyle|SS_NOTIFY);
 		// And the colors
+		if (const auto brush = SettingsThemeBrush(WM_CTLCOLORSTATIC, hdc, hCtrl, true))
+			return brush;
 		SetTextColor(hdc, GetSysColor(COLOR_HOTLIGHT));
 		SetBkMode(hdc, TRANSPARENT);
 		HBRUSH hBrush = GetSysColorBrush(COLOR_3DFACE);
@@ -2364,8 +2468,9 @@ INT_PTR CSettings::OnDrawFontItem(HWND hWnd2, UINT messg, WPARAM wParam, LPARAM 
 
 		if (!(pItem->itemState & ODS_SELECTED))
 		{
-			crText = GetSysColor(COLOR_WINDOWTEXT);
-			crBack = GetSysColor(COLOR_WINDOW);
+			const bool dark = CDwmHelper::IsWindowsDarkMode();
+			crText = dark ? RGB(240, 240, 240) : GetSysColor(COLOR_WINDOWTEXT);
+			crBack = dark ? SettingsBackground(true) : GetSysColor(COLOR_WINDOW);
 		}
 		else
 		{

@@ -28,6 +28,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 #include "ConsoleMain.h"
+#include "ConsoleState.h"
 #include <winerror.h>
 #include <winnt.h>
 #include <tchar.h>
@@ -38,6 +39,9 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "../common/WConsole.h"
 #include "../common/WConsoleInfo.h"
 #include "../common/WErrGuard.h"
+#include "../common/ConPtyData.h"
+#include "../common/ConPtyInput.h"
+#include <set>
 #include "../ConEmu/version.h"
 
 #include "ConAnsi.h"
@@ -158,7 +162,9 @@ SrvAnsi* SrvAnsi::Object()
 		if (!object_)
 		{
 			object_ = new SrvAnsi();
-			lock.release();
+			// release() abandons ownership without unlocking; MSVC then throws
+			// resource_deadlock_would_occur when shutdown reacquires this mutex.
+			lock.unlock();
 
 			Shutdown::RegisterEvent(SrvAnsi::Release, 0);
 		}
@@ -234,7 +240,9 @@ condata::Table* SrvAnsi::GetTable(GetTableEnum _table)
 // ReSharper disable once CppMemberFunctionMayBeStatic
 CESERVER_CONSOLE_MAPPING_HDR* SrvAnsi::GetConMap() const
 {
-	return (gpSrv && gpSrv->pConsoleMap) ? gpSrv->pConsoleMap->Ptr() : nullptr;
+	if (gpSrv && gpSrv->pConsoleMap)
+		return gpSrv->pConsoleMap->Ptr();
+	return LoadSrvMapping(gState.realConWnd_, m_ClientMap) ? &m_ClientMap : nullptr;
 }
 
 // ReSharper disable once CppMemberFunctionMayBeStatic
@@ -605,14 +613,14 @@ void SrvAnsi::ReSetDisplayParm(bool bReset, bool bApply)
 				if (TextColor > 15)
 					attr.flags |= condata::Attribute::fFore24b;
 				else
-					attr.attr.foreIdx = static_cast<unsigned>(TextColor);
+					attr.attr.foreIdx = RgbMap[TextColor & 0xF];
 				attr.crForeColor = RgbMap[TextColor&0xFF];
 			}
 			if (attr.flags & condata::Attribute::fFore24b)
 			{
 				WORD n = 7;
 				Far3Color::Color2FgIndex(attr.crForeColor & 0xFFFFFF, n);
-				attr.attr.foreIdx = 7;
+				attr.attr.foreIdx = n;
 			}
 		}
 		else if (TextColor & 0x8)
@@ -650,7 +658,7 @@ void SrvAnsi::ReSetDisplayParm(bool bReset, bool bApply)
 				if (BackColor > 15)
 					attr.flags |= condata::Attribute::fBack24b;
 				else
-					attr.attr.backIdx = static_cast<unsigned>(BackColor);
+					attr.attr.backIdx = RgbMap[BackColor & 0xF];
 				attr.crBackColor = RgbMap[BackColor&0xFF];
 			}
 			if (attr.flags & condata::Attribute::fBack24b)
@@ -963,6 +971,7 @@ bool SrvAnsi::OurWriteConsoleA(const char* lpBuffer, DWORD nNumberOfCharsToWrite
 	}
 
 fin:
+	++m_FrameVersion;
 	std::ignore = pTokenStart;
 	std::ignore = nTotalWritten;
 	return lbRc;
@@ -976,7 +985,118 @@ bool SrvAnsi::OurWriteConsoleW(const wchar_t* lpBuffer, DWORD nNumberOfCharsToWr
 
 	// The output
 	lbRc = writer.OurWriteConsole(lpBuffer, nNumberOfCharsToWrite, lpNumberOfCharsWritten);
+	++m_FrameVersion;
 	return lbRc;
+}
+
+void SrvAnsi::SetConPtyInput(HANDLE input)
+{
+	{
+		std::lock_guard<std::mutex> lock(m_InputMutex);
+		m_ConPtyInput = input;
+		m_ConPtyInputError = ERROR_SUCCESS;
+	}
+	if (input)
+	{
+		m_Primary.SetBackscrollMax(ConPtyHistoryLimit);
+		m_Primary.SetReflow(true);
+		m_Alternative.SetUnicode(true);
+		ChangeTermMode(tmc_TerminalType, te_conpty);
+	}
+	if (!input && gbIsXTermOutput)
+		StartXTermMode(false);
+}
+
+bool SrvAnsi::WriteTerminalInput(const char* data, DWORD size)
+{
+	std::lock_guard<std::mutex> lock(m_InputMutex);
+	if (!m_ConPtyInput.load() || m_ConPtyInputError.load()) return false;
+	if (WriteConPtyInput(m_ConPtyInput.load(), data, size)) return true;
+	m_ConPtyInputError = GetLastError() ? GetLastError() : ERROR_WRITE_FAULT;
+	return false;
+}
+
+bool SrvAnsi::ReportTerminalString(const wchar_t* text)
+{
+	const int size = WideCharToMultiByte(CP_UTF8, 0, text, -1, nullptr, 0, nullptr, nullptr);
+	if (!size)
+		return false;
+	std::vector<char> bytes(size);
+	WideCharToMultiByte(CP_UTF8, 0, text, -1, bytes.data(), size, nullptr, nullptr);
+	return WriteTerminalInput(bytes.data(), size - 1);
+}
+
+bool SrvAnsi::ReadTerminalFrame(COORD size, std::vector<condata::CharInfo>& cells, COORD& cursor, uint64_t& version,
+	unsigned& history, std::map<unsigned, std::wstring>& links, std::map<unsigned, std::wstring>& graphemes)
+{
+	std::lock_guard<std::mutex> lock(m_UseMutex);
+	if (size.X < 1 || size.Y < 1 || static_cast<unsigned>(size.Y) > ConPtyCellCapacity / size.X)
+		throw condata::console_error("ConPTY viewport exceeds frame capacity");
+	m_Primary.SetBackscrollMax(std::min<unsigned>({ConPtyHistoryLimit, ConPtyCellCapacity / size.X - size.Y, static_cast<unsigned>(32767 - size.Y)}));
+	const auto previous = m_Primary.GetSize();
+	if (previous.x != static_cast<unsigned>(size.X) || previous.y != size.Y)
+	{
+		m_Primary.Resize({static_cast<unsigned>(size.X), size.Y});
+		m_Alternative.Resize({static_cast<unsigned>(size.X), size.Y});
+		++m_FrameVersion;
+	}
+	if (version == m_FrameVersion)
+		return false;
+	auto* table = GetTable(GetTableEnum::current);
+	history = m_UsePrimary ? table->GetBackscroll() : 0;
+	cells.resize(static_cast<size_t>(size.X) * (size.Y + history));
+	table->GetData(cells.data(), {static_cast<unsigned>(size.X), static_cast<int>(size.Y + history)},
+		{0, -static_cast<int>(history), size.X - 1, size.Y - 1});
+	links.clear();
+	graphemes.clear();
+	for (const auto& cell : cells)
+	{
+		const auto glyph = table->GetGraphemes().find(cell.attr.graphemeId);
+		if (glyph != table->GetGraphemes().end()) graphemes.insert(*glyph);
+		const auto link = m_Hyperlinks.find(cell.attr.hyperlinkId);
+		if (link != m_Hyperlinks.end()) links.insert(*link);
+	}
+	const auto pos = table->GetCursor();
+	cursor = {static_cast<SHORT>(std::min<unsigned>(pos.x, size.X - 1)), static_cast<SHORT>(std::max(0, std::min(pos.y, size.Y - 1)))};
+	version = m_FrameVersion;
+	return true;
+}
+
+void SrvAnsi::SetHyperlink(const std::wstring& uri)
+{
+	m_ActiveHyperlink = 0;
+	if (!IsConPtyUriAllowed(uri) || !m_NextHyperlink)
+		return;
+	for (const auto& link : m_Hyperlinks)
+	{
+		if (link.second == uri) { m_ActiveHyperlink = link.first; return; }
+	}
+	if (m_Hyperlinks.size() >= ConPtyLinkCapacity || m_UriChars + uri.size() > ConPtyUriCapacity)
+		PruneHyperlinks();
+	if (m_Hyperlinks.size() >= ConPtyLinkCapacity || m_UriChars + uri.size() > ConPtyUriCapacity)
+		return;
+	m_ActiveHyperlink = m_NextHyperlink++;
+	m_Hyperlinks.emplace(m_ActiveHyperlink, uri);
+	m_UriChars += uri.size();
+}
+
+void SrvAnsi::PruneHyperlinks()
+{
+	std::set<unsigned> used;
+	std::vector<condata::CharInfo> cells;
+	for (auto* table : {&m_Primary, &m_Alternative})
+	{
+		const auto size = table->GetSize();
+		const int history = table->GetBackscroll();
+		cells.resize(static_cast<size_t>(size.x) * (size.y + history));
+		table->GetData(cells.data(), {size.x, size.y + history}, {0, -history, static_cast<int>(size.x) - 1, size.y - 1});
+		for (const auto& cell : cells) if (cell.attr.hyperlinkId) used.insert(cell.attr.hyperlinkId);
+	}
+	for (auto link = m_Hyperlinks.begin(); link != m_Hyperlinks.end();)
+	{
+		if (!used.count(link->first)) { m_UriChars -= link->second.size(); link = m_Hyperlinks.erase(link); }
+		else ++link;
+	}
 }
 
 std::pair<HANDLE, HANDLE> SrvAnsi::GetClientHandles(DWORD clientPID)
@@ -1061,7 +1181,10 @@ void SrvAnsi::ChangeTermMode(TermModeCommand mode, DWORD value, DWORD nPID /*= 0
 		pIn->dwData[1] = value;  // NOLINT(clang-diagnostic-array-bounds)
 		pIn->dwData[2] = nPID ? nPID : GetCurrentProcessId();  // NOLINT(clang-diagnostic-array-bounds)
 		CESERVER_REQ* pOut = nullptr;
-		cmd_StartXTerm(*pIn, &pOut);
+		if (gState.runMode_ == RunMode::Server || gState.runMode_ == RunMode::AltServer)
+			cmd_StartXTerm(*pIn, &pOut);
+		else if (auto* mapping = GetConMap())
+			pOut = ExecuteSrvCmd(mapping->nServerPID, pIn, gState.realConWnd_);
 		ExecuteFreeResult(pIn);
 		ExecuteFreeResult(pOut);
 	}
@@ -1081,7 +1204,7 @@ void SrvAnsi::StartXTermMode(const bool bStart)
 	StartXTermOutput(bStart);
 
 	// Remember last mode and pass to server
-	ChangeTermMode(tmc_TerminalType, bStart ? te_xterm : te_win32);
+	ChangeTermMode(tmc_TerminalType, bStart ? (IsConPty() ? te_conpty : te_xterm) : te_win32);
 }
 
 void SrvAnsi::StartXTermOutput(const bool bStart)

@@ -29,7 +29,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define HIDE_USE_EXCEPTION_INFO
 #include "defines.h"
 #include "MBSTR.h"
-#include <OleAuto.h>
+#include <oleauto.h>
 
 /* SysAllocString/SysFreeString encapsulation */
 

@@ -348,6 +348,11 @@ bool CPluginBackground::IsParmChanged(struct PaintBackgroundArg* p1, struct Pain
 	if (!p1 || !p2)
 		return false;
 
+#if defined(_M_ARM64) || defined(__aarch64__)
+	if (p1->Place != p2->Place)
+		return true;
+#endif
+
 	if (p1->dcSizeX != p2->dcSizeX || p1->dcSizeY != p2->dcSizeY)
 		return true;
 
@@ -404,6 +409,19 @@ void CPluginBackground::CheckPanelFolders(int anForceSetPlace /*= 0*/)
 	// Заполнить текущее "место"
 	if (anForceSetPlace != 0)
 		m_Default.Place = (PaintBackgroundPlaces)anForceSetPlace;
+#if defined(_M_ARM64) || defined(__aarch64__)
+	else
+	{
+		// A modal dialog sits over the editor or panels. Keep the background
+		// of that underlying window until Far switches to another area.
+		switch (Plugin()->GetActiveWindowType())
+		{
+		case WTYPE_PANELS: m_Default.Place = pbp_Panels; break;
+		case WTYPE_EDITOR: m_Default.Place = pbp_Editor; break;
+		case WTYPE_VIEWER: m_Default.Place = pbp_Viewer; break;
+		}
+	}
+#else
 	else if (!gpTabs)
 		m_Default.Place = pbp_Panels;
 	else if (gnCurrentWindowType == WTYPE_EDITOR)
@@ -415,6 +433,7 @@ void CPluginBackground::CheckPanelFolders(int anForceSetPlace /*= 0*/)
 		_ASSERTE(gnCurrentWindowType == WTYPE_PANELS);
 		m_Default.Place = pbp_Panels;
 	}
+#endif
 
 	if (IsParmChanged(&m_Default, &m_Last))
 	{
@@ -971,5 +990,10 @@ void CPluginBackground::MonitorBackground()
 		// Но проверить все параметры фара тоже нужно
 		mn_ReqActions |= ra_CheckPanelFolders;
 		gbNeedBgActivate = TRUE;
+#if defined(_M_ARM64) || defined(__aarch64__)
+		// Without the input hook, ask Far to run the pending panel check on its main thread.
+		if (gnCurrentWindowType == WTYPE_PANELS && gnSynchroCount == 0)
+			Plugin()->ExecuteSynchro();
+#endif
 	}
 }

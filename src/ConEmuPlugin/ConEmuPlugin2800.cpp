@@ -105,7 +105,7 @@ struct FarStandardFunctions *FSFW2800=NULL;
 static MArray<WindowInfo>* pwList = NULL;
 
 /* EXPORTS BEGIN */
-void WINAPI GetGlobalInfoW(struct GlobalInfo *Info)
+extern "C" void WINAPI GetGlobalInfoW(struct GlobalInfo *Info)
 {
 	_ASSERTE(Info->StructSize >= (size_t)((LPBYTE)(&Info->Instance) - (LPBYTE)(Info)));
 
@@ -240,8 +240,9 @@ bool CPluginW2800::GetPanelInfo(GetPanelDirFlags Flags, CEPanelInfo* pInfo)
 
 	if (Flags & (gpdf_Left|gpdf_Right))
 	{
-		InfoW2800->PanelControl(PANEL_ACTIVE, FCTL_GETPANELINFO, 0, &actv);
-		InfoW2800->PanelControl(PANEL_PASSIVE, FCTL_GETPANELINFO, 0, &pasv);
+		if (!InfoW2800->PanelControl(PANEL_ACTIVE, FCTL_GETPANELINFO, 0, &actv)
+			|| !InfoW2800->PanelControl(PANEL_PASSIVE, FCTL_GETPANELINFO, 0, &pasv))
+			return false;
 		PanelInfo* pLeft = (actv.Flags & PFLAGS_PANELLEFT) ? &actv : &pasv;
 		PanelInfo* pRight = (actv.Flags & PFLAGS_PANELLEFT) ? &pasv : &actv;
 		p = (Flags & gpdf_Left) ? pLeft : pRight;

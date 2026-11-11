@@ -201,6 +201,81 @@ bool CDwmHelper::IsGlass()
 	return IsDwm();
 }
 
+bool CDwmHelper::IsHighContrast()
+{
+	HIGHCONTRASTW contrast = {sizeof(contrast)};
+	return SystemParametersInfoW(SPI_GETHIGHCONTRAST, sizeof(contrast), &contrast, 0)
+		&& (contrast.dwFlags & HCF_HIGHCONTRASTON);
+}
+
+bool CDwmHelper::IsWindowsDarkMode()
+{
+	DWORD light = 1, size = sizeof(light);
+	return !IsHighContrast()
+		&& RegGetValueW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+			L"AppsUseLightTheme", RRF_RT_REG_DWORD, nullptr, &light, &size) == ERROR_SUCCESS
+		&& light == 0;
+}
+
+void CDwmHelper::EnableDarkCaption(HWND window)
+{
+	if (!dwm._DwmSetWindowAttribute || gOSVer.dwBuildNumber < 22000)
+		return;
+
+	// DWMWA_USE_IMMERSIVE_DARK_MODE is absent from older Windows SDKs.
+	constexpr DWORD immersiveDarkMode = 20;
+	const BOOL enabled = TRUE;
+	dwm._DwmSetWindowAttribute(window, immersiveDarkMode, &enabled, sizeof(enabled));
+}
+
+void CDwmHelper::ApplyPopupMenuTheme(HWND owner)
+{
+	// Ordinal 135 had a different signature before Windows 10 version 1903.
+	if (!mh_UxTheme || gOSVer.dwMajorVersion < 10 || gOSVer.dwBuildNumber < 18362)
+		return;
+
+	enum class AppMode { Default, AllowDark, ForceDark };
+	using SetAppMode = AppMode (WINAPI*)(AppMode);
+	using AllowForWindow = bool (WINAPI*)(HWND, bool);
+	using FlushMenus = void (WINAPI*)();
+	const auto setMode = reinterpret_cast<SetAppMode>(GetProcAddress(mh_UxTheme, MAKEINTRESOURCEA(135)));
+	const auto allow = reinterpret_cast<AllowForWindow>(GetProcAddress(mh_UxTheme, MAKEINTRESOURCEA(133)));
+	const auto flush = reinterpret_cast<FlushMenus>(GetProcAddress(mh_UxTheme, MAKEINTRESOURCEA(136)));
+	if (!setMode || !flush)
+		return;
+
+	const bool dark = IsWindowsDarkMode();
+	static int lastMode = -1;
+	const bool changed = (lastMode != int(dark));
+	if (changed)
+	{
+		setMode(dark ? AppMode::ForceDark : AppMode::Default);
+		lastMode = int(dark);
+	}
+	if (owner && allow)
+		allow(owner, dark);
+	if (changed)
+		flush();
+}
+
+COLORREF CDwmHelper::WindowsAccentColor()
+{
+	DWORD color = 0, size = sizeof(color);
+	if (RegGetValueW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\DWM",
+			L"AccentColor", RRF_RT_REG_DWORD, nullptr, &color, &size) == ERROR_SUCCESS)
+		return color & 0x00FFFFFF;
+	return GetSysColor(COLOR_HIGHLIGHT);
+}
+
+COLORREF CDwmHelper::BlendColors(COLORREF base, COLORREF tint, unsigned tintPercent)
+{
+	const auto blend = [tintPercent](unsigned a, unsigned b) {
+		return (a * (100 - tintPercent) + b * tintPercent) / 100;
+	};
+	return RGB(blend(GetRValue(base), GetRValue(tint)), blend(GetGValue(base), GetGValue(tint)),
+		blend(GetBValue(base), GetBValue(tint)));
+}
+
 bool CDwmHelper::IsThemed()
 {
 	if (!mb_ThemeAllowed) // || !mb_EnableTheming)

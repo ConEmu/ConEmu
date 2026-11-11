@@ -41,7 +41,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "../common/Common.h"
 
 #include <tchar.h>
-#include <Shlwapi.h>
+#include <shlwapi.h>
 #include "../common/shlobj.h"
 #include "../common/CmdLine.h"
 #include "../common/ConEmuCheck.h"

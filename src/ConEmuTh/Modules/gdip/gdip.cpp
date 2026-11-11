@@ -28,7 +28,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "../../../common/defines.h"
 using namespace std;
-#include <GdiPlus.h>
+#include <gdiplus.h>
 #include <crtdbg.h>
 #include "../../../common/Memory.h"
 #include "../../../common/WThreads.h"
@@ -840,7 +840,7 @@ struct GDIPlusImage
 
 
 
-BOOL WINAPI CET_Init(struct CET_Init* pInit)
+extern "C" BOOL WINAPI CET_Init(struct CET_Init* pInit)
 {
 	HeapInitialize();
 	_ASSERTE(pInit->cbSize >= sizeof(struct CET_Init));
@@ -874,7 +874,7 @@ BOOL WINAPI CET_Init(struct CET_Init* pInit)
 	return TRUE;
 }
 
-VOID WINAPI CET_Done(struct CET_Init* pInit)
+extern "C" VOID WINAPI CET_Done(struct CET_Init* pInit)
 {
 	if (pInit)
 	{
@@ -899,7 +899,7 @@ VOID WINAPI CET_Done(struct CET_Init* pInit)
 #define SETERROR(n) if (pLoadPreview) pLoadPreview->nErrNumber = n;
 
 
-BOOL WINAPI CET_Load(struct CET_LoadInfo* pLoadPreview)
+extern "C" BOOL WINAPI CET_Load(struct CET_LoadInfo* pLoadPreview)
 {
 	if (!pLoadPreview || *((LPDWORD)pLoadPreview) != sizeof(struct CET_LoadInfo))
 	{
@@ -1026,7 +1026,7 @@ BOOL WINAPI CET_Load(struct CET_LoadInfo* pLoadPreview)
 	return TRUE;
 }
 
-VOID WINAPI CET_Free(struct CET_LoadInfo* pLoadPreview)
+extern "C" VOID WINAPI CET_Free(struct CET_LoadInfo* pLoadPreview)
 {
 	if (!pLoadPreview || *((LPDWORD)pLoadPreview) != sizeof(struct CET_LoadInfo))
 	{
@@ -1068,7 +1068,7 @@ VOID WINAPI CET_Free(struct CET_LoadInfo* pLoadPreview)
 	}
 }
 
-VOID WINAPI CET_Cancel(LPVOID pContext)
+extern "C" VOID WINAPI CET_Cancel(LPVOID pContext)
 {
 	if (!pContext) return;
 

@@ -179,6 +179,7 @@
 #define IDC_CONSOLE_STATES              1560
 #define cbFARuseASCIIsort               1561
 #define cbFixAltOnAltTab                1562
+#define cbFarWheelScrollback            3998
 #define cbFarHourglass                  1563
 #define slTransparent                   1564
 #define cbHideCaption                   1565

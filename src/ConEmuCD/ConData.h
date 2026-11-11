@@ -32,6 +32,8 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include  <stdexcept>
 #include "../common/defines.h"
 #include <deque>
+#include <map>
+#include <memory>
 #include <vector>
 #include <string>
 #include <stdexcept>
@@ -117,6 +119,8 @@ struct Attribute
 	unsigned crForeColor; // only 24 bits are used
 	/// Background color from xTerm256-color palette if (flags&fBack8b), or RGB if (flags&fBack24b)
 	unsigned crBackColor; // only 24 bits are used
+	unsigned hyperlinkId = 0;
+	unsigned graphemeId = 0;
 
 	/// Helper functions to access flags
 	bool isBold() const;
@@ -197,6 +201,8 @@ public:
 	/// @result *true* if '`n'-terminated string was emitted here
 	///         *false* if there were no '`n' emitted to the line
 	bool HasLineFeed() const;
+	bool SoftWrapped = false;
+	unsigned SoftWrapLength = 0;
 
 	/// Function will never return '\0'
 	wchar_t GetCellChar(unsigned cell) const;
@@ -227,6 +233,7 @@ protected:
 	void Write(unsigned cell, const Attribute& attr, std::pair<const wchar_t*,wchar_t> txt, unsigned count);
 	/// *protected* helper to reset CR/LF saved positions
 	void ResetCRLF();
+	void ClearWideOutside(unsigned cell, unsigned count, const Attribute& replacement);
 
 protected:
 	// Reserved for synchronization with RealConsole
@@ -267,8 +274,8 @@ public:
 		unsigned Top, Bottom;
 	};
 
-	using deque_type = std::deque<Row*, MArrayAllocator<Row*>>;
-	using vector_type = std::vector<Row*, MArrayAllocator<Row*>>;
+	using deque_type = std::deque<std::shared_ptr<Row>, MArrayAllocator<std::shared_ptr<Row>>>;
+	using vector_type = std::vector<std::shared_ptr<Row>, MArrayAllocator<std::shared_ptr<Row>>>;
 
 public:
 	Table(const Attribute& _attr = {7}, const Coord& _size = {80, 25}, const int _backscrollMax = 1<<20, BellCallback _bellCallback = nullptr);
@@ -285,6 +292,9 @@ public:
 	Coord GetSize() const;
 	/// Change visual dimensions of working area
 	void Resize(const Coord newSize);
+	void SetReflow(bool enabled) { m_Reflow = enabled; if (enabled) m_ExtendedUnicode = true; }
+	void SetUnicode(bool enabled) { m_ExtendedUnicode = enabled; }
+	const std::map<unsigned, std::wstring>& GetGraphemes() const { return m_Graphemes; }
 	/// Return count of rows went to backscroll buffer (console history)
 	unsigned GetBackscroll() const;
 	/// Limit maximum count of backscroll rows
@@ -328,6 +338,8 @@ public:
 
 	/// Emit CR automatically after single LF
 	void SetAutoCRLF(bool autoCRLF);
+	bool OriginMode = false;
+	bool InsertMode = false;
 	/// Defines behavior when character is written at the last cell of the row
 	/// If *true* (enabled by "ESC [ ? 7 h") we may advance cursor and create new line (perhaps on next write if *BeyondEOL*)
 	/// If *false* (enabled by "ESC [ ? 7 l") cursor stays at *m_Size.x-1* indefinitely
@@ -398,6 +410,14 @@ protected:
 	void ShiftRowIndexes(int direction, unsigned flags = ShiftAll);
 
 private:
+	void ReflowResize(const Coord newSize);
+	unsigned StoreGrapheme(const std::wstring& text);
+	bool AppendGrapheme(const std::wstring& text, unsigned codepoint);
+	std::map<unsigned, std::wstring> m_Graphemes;
+	std::map<std::wstring, unsigned> m_GraphemeLookup;
+	bool m_Reflow = false;
+	bool m_ExtendedUnicode = false;
+	wchar_t m_PendingHigh = 0;
 	/// Bell or Flash on Write("\7")
 	BellCallback m_BellCallback = nullptr;
 	void* m_BellCallbackParam = nullptr;

@@ -27,6 +27,12 @@ struct InjectHookFunctions
 // Use WriteProcessMemory and SetThreadContext
 inline int InjectHookDLL(PROCESS_INFORMATION pi, InjectHookFunctions* pfn /*UINT_PTR fnLoadLibrary*/, int ImageBits/*32/64*/, LPCWSTR apszHookDllPath, DWORD_PTR* ptrAllocated, DWORD* pnAllocated)
 {
+#if defined(__aarch64__) || defined(_M_ARM64)
+	if (ptrAllocated) *ptrAllocated = 0;
+	if (pnAllocated) *pnAllocated = 0;
+	SetLastError(ERROR_NOT_SUPPORTED);
+	return CIH_AsmGeneralError;
+#else
 	CINJECTHK_EXIT_CODES iRc = CIH_AsmGeneralError/*-1000*/;
 	CONTEXT		context = {};
 	void*		mem		 = nullptr;
@@ -543,4 +549,5 @@ wrap:
 	UNREFERENCED_PARAMETER(dwErrCode);
 
 	return iRc;
+#endif
 }

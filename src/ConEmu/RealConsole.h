@@ -1,4 +1,4 @@
-﻿
+
 /*
 Copyright (c) 2009-present Maximus5
 All rights reserved.
@@ -27,7 +27,9 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #pragma once
+#include <atomic>
 #include "../common/ConsoleAnnotation.h"
+#include "../common/ConPtyData.h"
 #include "../common/RgnDetect.h"
 #include "../common/MArray.h"
 #include "../common/MEvent.h"
@@ -391,6 +393,11 @@ class CRealConsole
 		void OnKeyboard(HWND hWnd, UINT messg, WPARAM wParam, LPARAM lParam, const wchar_t *pszChars, const MSG* pDeadCharMsg);
 		const ConEmuHotKey* ProcessSelectionHotKey(const ConEmuChord& VkState, bool bKeyDown, const wchar_t *pszChars);
 		TermEmulationType GetTermType();
+		bool UseTrueColor() const;
+		bool IsConPty() const { return mb_ConPty.load(); }
+		bool GetConPtyGlyphs(int columns, int rows, std::vector<ConPtyGlyph>& glyphs, bool fullFrame = false);
+		bool GetColorData(AnnotationHeader& header, const AnnotationInfo*& cells, bool& absolute);
+		bool GetConPtyLink(COORD position, CEStr& uri, COORD& first, COORD& last);
 		bool GetBracketedPaste();
 		bool GetAppCursorKeys();
 		LPCWSTR GetMntPrefix();
@@ -898,6 +905,8 @@ class CRealConsole
 
 		// TrueColor Mapping
 		MFileMapping<AnnotationHeader> m_TrueColorerMap;
+		MFileMapping<ConPtySharedData> m_ConPtyMap;
+		std::vector<ConPtyGlyph> m_FrozenConPtyGlyphs;
 		AnnotationHeader m_TrueColorerHeader;
 		const AnnotationInfo *mp_TrueColorerData;
 		int mn_TrueColorMaxCells;
@@ -957,4 +966,5 @@ class CRealConsole
 
 		// XTerm keyboard substitutions
 		TermX* mp_XTerm = nullptr;
+		std::atomic_bool mb_ConPty{false};
 };

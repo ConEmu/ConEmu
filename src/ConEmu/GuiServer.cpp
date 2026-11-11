@@ -93,10 +93,7 @@ bool CGuiServer::Start()
 	mp_GuiServerPID->SetLoopCommands(false);
 	mp_GuiServerPID->SetDummyAnswerSize(sizeof(CESERVER_REQ_HDR));
 
-	PipeServer<CESERVER_REQ>::PipeServerConnected_t lpfnOnConnected = nullptr;
-	#ifdef _DEBUG
-	lpfnOnConnected = CGuiServer::OnGuiServerConnected;
-	#endif
+	PipeServer<CESERVER_REQ>::PipeServerConnected_t lpfnOnConnected = CGuiServer::OnGuiServerConnected;
 
 	if (!mp_GuiServer->StartPipeServer(false, ms_ServerPipe, reinterpret_cast<LPARAM>(this), LocalSecurity(), GuiServerCommand, GuiServerFree, lpfnOnConnected, nullptr))
 	{
@@ -229,6 +226,18 @@ BOOL CGuiServer::GuiServerCommand(LPVOID pInst, CESERVER_REQ* pIn, CESERVER_REQ*
 	{
 		case CECMD_NEWCMD:
 		{
+			const size_t offset = offsetof(CESERVER_REQ_NEWCMD, ptrDataStart);
+			if (pIn->DataSize() < offset) return FALSE;
+			const size_t chars = (pIn->DataSize() - offset) / sizeof(wchar_t);
+			const auto& cmd = pIn->NewCmd;
+			if (cmd.cchCommand > chars || cmd.cchEnvStrings > chars - cmd.cchCommand
+				|| !wmemchr(cmd.szConEmu, 0, countof(cmd.szConEmu))
+				|| !wmemchr(cmd.szCurDir, 0, countof(cmd.szCurDir))) return FALSE;
+			const auto strings = reinterpret_cast<const wchar_t*>(&cmd.ptrDataStart);
+			if (cmd.cchCommand && !wmemchr(strings, 0, cmd.cchCommand)) return FALSE;
+			if (cmd.cchEnvStrings && (cmd.cchEnvStrings < 2
+				|| strings[cmd.cchCommand + cmd.cchEnvStrings - 1]
+				|| strings[cmd.cchCommand + cmd.cchEnvStrings - 2])) return FALSE;
 			// Приходит из другой копии ConEmu.exe, когда она запущена с ключом /single, /showhide, /showhideTSA
 			DEBUGSTRCMD(L"GUI recieved CECMD_NEWCMD\n");
 
@@ -690,6 +699,11 @@ BOOL CGuiServer::GuiServerCommand(LPVOID pInst, CESERVER_REQ* pIn, CESERVER_REQ*
 
 		case CECMD_GUIMACRO:
 		{
+			const size_t offset = offsetof(CESERVER_REQ_GUIMACRO, sMacro);
+			const size_t bytes = pIn->DataSize();
+			if (bytes < offset + sizeof(wchar_t) || (bytes - offset) % sizeof(wchar_t)
+				|| !wmemchr(pIn->GuiMacro.sMacro, 0, (bytes - offset) / sizeof(wchar_t)))
+				return FALSE;
 			// Допустимо, если GuiMacro пытаются выполнить извне
 			CVConGuard VCon;
 			CRealConsole* pRCon = nullptr;
@@ -830,7 +844,6 @@ void CGuiServer::GuiServerFree(CESERVER_REQ* pReply, LPARAM lParam)
 	ExecuteFreeResult(pReply);
 }
 
-#ifdef _DEBUG
 BOOL CGuiServer::OnGuiServerConnected(LPVOID pInst, LPARAM lParam)
 {
 	#ifdef ALLOW_WINE_MSG
@@ -841,6 +854,6 @@ BOOL CGuiServer::OnGuiServerConnected(LPVOID pInst, LPARAM lParam)
 		MsgBox(szMsg, MB_ICONINFORMATION);
 	}
 	#endif
-	return TRUE;
+	const auto server = reinterpret_cast<CGuiServer*>(lParam);
+	return server && IsLocalPipeClientTrusted(server->mp_GuiServer->GetPipeHandle(pInst), true);
 }
-#endif

@@ -3,7 +3,11 @@
 ######################################################
 
 ifeq ($(EXT),dll)
+ifeq ($(ARM64),1)
+	LNKFLAGS =
+else
 	LNKFLAGS = -mdll -Xlinker --base-file -Xlinker $(TMPDIR)/$(RELEASENAME).base
+endif
 	ifdef BASEADDRESS
 		LNKFLAGS += -Xlinker --image-base -Xlinker $(BASEADDRESS)
 	endif
@@ -22,7 +26,7 @@ endif
 ifeq ($(DIRBIT),32)
 	LNKFLAGS += -Xlinker --large-address-aware
 	WINDRES += -F pe-i386
-else
+else ifneq ($(ARM64),1)
 	WINDRES += -F pe-x86-64
 endif
 
@@ -78,7 +82,8 @@ $(RES): $(RC_NAME)
 	@$(MKDIR) -p $(@D)
 	@$(WINDRES) $(RCFLAGS) -i $< -o $@
 
-$(RES2): $(RES_NAME2).res
+RES2_INPUT ?= $(RES_NAME2).res
+$(RES2): $(RES2_INPUT) $(RES2_DEPS)
 	@echo compiling resources $<
 	@$(MKDIR) -p $(@D)
 	@$(WINDRES) $(RCFLAGS) -i $< -o $@
@@ -88,6 +93,8 @@ $(RELEASEFULLNAME): $(OBJS)
 	@$(MKDIR) -p $(@D)
 ifeq ($(EXT),exe)
 	@$(CXX) -o $(TMPDIR)/$(RELEASENAME) $(OBJS) $(LNKFLAGS) -Xlinker -Map -Xlinker $(MAP)
+else ifeq ($(ARM64),1)
+	@$(CXX) -shared -o $(TMPDIR)/$(RELEASENAME) $(OBJS) $(DEF) $(LNKFLAGS)
 else
 	@$(CXX) -mdll -o $(TMPDIR)/$(RELEASENAME) -Xlinker --base-file -Xlinker $(TMPDIR)/$(RELEASENAME).base $(OBJS) $(LNKFLAGS)
 	@$(DLLTOOL) --dllname $(TMPDIR)/$(RELEASENAME) --base-file $(TMPDIR)/$(RELEASENAME).base --output-exp $(TMPDIR)/$(RELEASENAME).exp --def $(DEF)

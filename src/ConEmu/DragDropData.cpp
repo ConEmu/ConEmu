@@ -1416,7 +1416,7 @@ void CDragDropData::RetrieveDragToInfo(POINTL pt)
 	}
 
 	CEFarWindowType tabType = pRCon->GetActiveTabType();
-	DWORD nFarPID = pRCon->GetFarPID(TRUE);
+	const DWORD nFarPID = pRCon->GetFarPID(TRUE);
 	UNREFERENCED_PARAMETER(tabType);
 	bool bInfoSet = false;
 
@@ -1425,7 +1425,8 @@ void CDragDropData::RetrieveDragToInfo(POINTL pt)
 		//SetDragToInfo(nullptr, 0, pRCon);
 		DEBUGSTRFAR(L"CDragDropData::RetrieveDragFromInfo() -> (nFarPID == 0)\n");
 	}
-	else if (!pRCon->isAlive())
+	// Without hooks, the Far input heartbeat can be stale while the plugin pipe is responsive.
+	else if (gpConEmu->CanUseInjects() && !pRCon->isAlive())
 	{
 		DEBUGSTRFAR(L"CDragDropData::RetrieveDragFromInfo() -> (!pRCon->isAlive())\n");
 		gpConEmu->DebugStep(_T("DnD: Far is not alive, drop disabled"));

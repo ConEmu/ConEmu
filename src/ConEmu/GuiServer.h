@@ -48,7 +48,5 @@ protected:
 	bool mb_GuiForcedTermination;
 	static BOOL WINAPI GuiServerCommand(LPVOID pInst, CESERVER_REQ* pIn, CESERVER_REQ* &ppReply, DWORD &pcbReplySize, DWORD &pcbMaxReplySize, LPARAM lParam);
 	static void WINAPI GuiServerFree(CESERVER_REQ* pReply, LPARAM lParam);
-#ifdef _DEBUG
 	static BOOL WINAPI OnGuiServerConnected(LPVOID pInst, LPARAM lParam);
-#endif
 };

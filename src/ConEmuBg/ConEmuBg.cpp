@@ -1,4 +1,4 @@
-﻿//TODO: Осталось сделать только список цветов с перебором по букве диска
+//TODO: Осталось сделать только список цветов с перебором по букве диска
 //TODO: И аналогично для цвета фона градусника/картинок/текста и самого градусника
 
 /*
@@ -2305,6 +2305,11 @@ int PaintPanel(struct PaintBackgroundArg* pBk, BOOL bLeft, COLORREF& crOtherColo
 		}
 
 		// Цвет спрайтов, текста, фона градусника
+#if defined(_M_ARM64) || defined(__aarch64__)
+		// Use Far's current panel color for the fill and the emblem's base.
+		const auto panelBackground = CONBACKCOLOR(pBk->nFarColors[col_PanelText]);
+		pDraw->crBack[0] = pBk->crPalette[panelBackground];
+#endif
 		if (!(pDraw->Flags & DrawInfo::dif_DarkFilled))
 		{
 			RGBColor rgb; rgb.clr = *pDraw->crBack;
@@ -2940,6 +2945,15 @@ void StartPlugin(BOOL bConfigure)
 		SettingsLoad();
 	}
 
+#if defined(_M_ARM64) || defined(__aarch64__)
+	// Far can load this plugin after ConEmu when the loader hook is unavailable.
+	if (!gfRegisterBackground)
+	{
+		if (const HMODULE conemu = GetModuleHandleW(L"ConEmu.arm64.dll"))
+			gfRegisterBackground = reinterpret_cast<RegisterBackground_t>(GetProcAddress(conemu, "RegisterBackground"));
+	}
+#endif
+
 	static bool bWasRegistered = false;
 
 	if (gfRegisterBackground)
@@ -3029,7 +3043,7 @@ LPCWSTR GetMsgW(int aiMsg)
 }
 
 
-HANDLE WINAPI OpenW(const void* Info)
+extern "C" HANDLE WINAPI OpenW(const void* Info)
 {
 	HANDLE hResult = NULL;
 

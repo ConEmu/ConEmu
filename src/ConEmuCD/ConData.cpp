@@ -32,8 +32,13 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "../common/Common.h"
 #include "../common/CEStr.h"
+#include "../common/wcwidth.h"
 
 #include "ConData.h"
+#include "../common/UnicodeGrapheme.h"
+#include <memory>
+#include <atomic>
+#include <set>
 
 #undef TABLE_DEBUGDUMP
 #undef TABLE_UNITTESTS
@@ -315,7 +320,7 @@ bool Attribute::isBack24b() const
 bool Attribute::operator==(const Attribute& a) const
 {
 	return (attr.attr == a.attr.attr && flags == a.flags
-		&& crForeColor == a.crForeColor && crBackColor == a.crBackColor);
+		&& crForeColor == a.crForeColor && crBackColor == a.crBackColor && hyperlinkId == a.hyperlinkId && graphemeId == a.graphemeId);
 }
 bool Attribute::operator!=(const Attribute& a) const
 {
@@ -353,6 +358,8 @@ Row& Row::operator=(const Row& src)
 	m_RowID = src.m_RowID;
 	m_WasCR = src.m_WasCR;
 	m_WasLF = src.m_WasLF;
+	SoftWrapped = src.SoftWrapped;
+	SoftWrapLength = src.SoftWrapLength;
 	m_CWD = src.m_CWD;
 
 	// If src is not empty
@@ -388,7 +395,9 @@ Row& Row::operator=(Row&& src)
 	src.Validate();
 	m_RowID = src.m_RowID; src.m_RowID = 0;
 	m_WasCR = src.m_WasCR; src.m_WasCR = -1;
-	m_WasLF = src.m_WasLF; src.m_WasLF = -1;
+	m_WasLF = src.m_WasLF;
+	SoftWrapped = src.SoftWrapped;
+	SoftWrapLength = src.SoftWrapLength; src.m_WasLF = -1;
 	m_Colors = std::move(src.m_Colors);
 	m_Text = std::move(src.m_Text);
 	m_CWD = std::move(src.m_CWD);
@@ -436,12 +445,40 @@ void Row::Write(unsigned cell, const Attribute& attr, const wchar_t chr, unsigne
 	Write(cell, attr, {nullptr, chr?chr:L' '}, count);
 }
 
+void Row::ClearWideOutside(unsigned cell, unsigned count, const Attribute& replacement)
+{
+	if (!count) return;
+	auto clear = [&](unsigned index) {
+		if (index >= GetLength()) return;
+		Attribute attr; GetCellAttr(index, attr);
+		attr.graphemeId = attr.hyperlinkId = 0;
+		attr.attr.attr &= ~(COMMON_LVB_LEADING_BYTE | COMMON_LVB_TRAILING_BYTE);
+		m_Text[index] = L' ';
+		SetCellAttr(index, attr, 1);
+	};
+	Attribute attr;
+	if (cell && cell < GetLength())
+	{
+		GetCellAttr(cell, attr);
+		if ((attr.attr.attr & COMMON_LVB_TRAILING_BYTE) &&
+			(!(replacement.attr.attr & COMMON_LVB_TRAILING_BYTE) || attr.graphemeId != replacement.graphemeId)) clear(cell - 1);
+	}
+	const unsigned last = cell + count - 1;
+	if (last < GetLength())
+	{
+		GetCellAttr(last, attr);
+		if ((attr.attr.attr & COMMON_LVB_LEADING_BYTE) &&
+			(!(replacement.attr.attr & COMMON_LVB_LEADING_BYTE) || attr.graphemeId != replacement.graphemeId)) clear(last + 1);
+	}
+}
+
 // protected
 void Row::Write(unsigned cell, const Attribute& attr, std::pair<const wchar_t*,wchar_t> txt, unsigned count)
 {
 	if (!count)
 		return;
 
+	ClearWideOutside(cell, count, attr);
 	ResetCRLF();
 
 	// Reserve(((cell + count + 80) / 80) * 80);
@@ -473,6 +510,17 @@ void Row::Insert(unsigned cell, const Attribute& attr, const wchar_t chr, unsign
 	if (!count)
 		return;
 
+	if (cell < GetLength())
+	{
+		Attribute old; GetCellAttr(cell, old);
+		if (old.attr.attr & COMMON_LVB_TRAILING_BYTE)
+		{
+			old.attr.attr &= ~(COMMON_LVB_LEADING_BYTE | COMMON_LVB_TRAILING_BYTE);
+			old.graphemeId = old.hyperlinkId = 0;
+			Write(cell, old, L' ', 1);
+		}
+	}
+
 	Reserve(m_Text.length() + count);
 	SetReqSize(cell);
 	m_Text.insert(cell, count, chr);
@@ -496,6 +544,8 @@ void Row::Delete(unsigned cell, unsigned count)
 		return;
 	if (cell + count > cur_len)
 		count = cur_len - cell;
+
+	ClearWideOutside(cell, count, Attribute{});
 
 	Attribute firstAttr, lastAttr, newAttr;
 	unsigned first = GetCellAttr(cell, firstAttr);
@@ -562,6 +612,7 @@ void Row::SetCR(int pos)
 
 void Row::SetLF(int pos)
 {
+	SoftWrapped = false;
 	if (pos < 0)
 	{
 		m_WasLF = -1;
@@ -723,6 +774,7 @@ void Row::SetCellAttr(unsigned cell, const Attribute& attr, unsigned count)
 
 void Row::Reset(const Attribute& attr)
 {
+	SoftWrapped = false;
 	m_RowID = 0;
 	ResetCRLF();
 	m_Text.clear();
@@ -854,6 +906,8 @@ condata::Attribute Table::GetAttr() const
 
 void Table::Reset(const Attribute& attr)
 {
+	OriginMode = InsertMode = false;
+	m_PendingHigh = 0;
 	SetScrollRegion(false);
 	SetCursor({});
 	PromptPosReset();
@@ -876,11 +930,106 @@ void Table::ClearWorkspace()
 	m_Workspace.clear();
 }
 
+void Table::ReflowResize(const Coord newSize)
+{
+	std::vector<Row*> source;
+	for (auto i = m_Backscroll.rbegin(); i != m_Backscroll.rend(); ++i) source.push_back(i->get());
+	const size_t history = source.size();
+	size_t used = std::min<size_t>(m_Workspace.size(), m_Size.y);
+	while (used > static_cast<size_t>(m_Cursor.y + 1) && !m_Workspace[used - 1]->GetLength()) --used;
+	for (size_t i = 0; i < used; ++i) source.push_back(m_Workspace[i].get());
+	while (source.size() <= history + m_Cursor.y) source.push_back(nullptr);
+	std::vector<std::unique_ptr<Row>> rows;
+	std::vector<CharInfo> logical;
+	std::wstring workingDirectory;
+	size_t cursorOffset = 0, cursorRow = 0;
+	unsigned cursorX = 0;
+	bool hasCursor = false;
+	auto flush = [&]() {
+		rows.emplace_back(new Row{m_Attr});
+		rows.back()->SetWorkingDirectory(workingDirectory.c_str());
+		unsigned x = 0;
+		for (size_t i = 0; i < logical.size();)
+		{
+			const auto& cell = logical[i];
+			const bool pair = i + 1 < logical.size() &&
+				((cell.chr >= 0xD800 && cell.chr <= 0xDBFF && logical[i + 1].chr >= 0xDC00 && logical[i + 1].chr <= 0xDFFF)
+				|| (cell.attr.attr.attr & COMMON_LVB_LEADING_BYTE));
+			const unsigned width = pair ? 2 : 1;
+			if (x && x + width > newSize.x)
+			{
+				rows.back()->SoftWrapped = true;
+				rows.back()->SoftWrapLength = x;
+				rows.emplace_back(new Row{m_Attr});
+				rows.back()->SetWorkingDirectory(workingDirectory.c_str());
+				x = 0;
+			}
+			if (hasCursor && cursorOffset >= i && cursorOffset < i + width) { cursorRow = rows.size() - 1; cursorX = x; }
+			for (unsigned n = 0; n < width; ++n)
+				rows.back()->Write(x + n, logical[i + n].attr, logical[i + n].chr, 1);
+			x += width;
+			i += width;
+			if (x >= newSize.x && i < logical.size())
+			{
+				rows.back()->SoftWrapped = true;
+				rows.back()->SoftWrapLength = x;
+				rows.emplace_back(new Row{m_Attr});
+				rows.back()->SetWorkingDirectory(workingDirectory.c_str());
+				x = 0;
+			}
+		}
+		if (hasCursor && cursorOffset >= logical.size()) { cursorRow = rows.size() - 1; cursorX = x; }
+		if (!rows.back()->SoftWrapped) rows.back()->SetLF(x);
+		logical.clear();
+		hasCursor = false;
+	};
+	for (size_t y = 0; y < source.size(); ++y)
+	{
+		const auto* row = source[y];
+		if (row && row->GetWorkingDirectory()) workingDirectory = row->GetWorkingDirectory();
+		const bool cursor = y == history + m_Cursor.y;
+		unsigned length = row ? std::min(row->GetLength(), m_Size.x) : 0;
+		if (row && row->SoftWrapped) length = std::min(row->SoftWrapLength, m_Size.x);
+		if (cursor)
+		{
+			length = std::max(length, m_Cursor.x);
+			hasCursor = true;
+			cursorOffset = logical.size() + m_Cursor.x;
+		}
+		Attribute attr = m_Attr;
+		for (unsigned x = 0; x < length; ++x)
+		{
+			if (row) row->GetCellAttr(x, attr);
+			logical.push_back({row ? row->GetCellChar(x) : L' ', attr});
+		}
+		if (!row || !row->SoftWrapped || y + 1 == source.size()) flush();
+	}
+	if (rows.empty())
+	{
+		rows.emplace_back(new Row{m_Attr});
+		rows.back()->SetWorkingDirectory(workingDirectory.c_str());
+	}
+	const size_t top = std::min(cursorRow, rows.size() > static_cast<size_t>(newSize.y) ? rows.size() - newSize.y : 0);
+	const size_t oldest = m_BackscrollMax >= 0 && top > static_cast<size_t>(m_BackscrollMax) ? top - m_BackscrollMax : 0;
+	m_Backscroll.clear(); m_Workspace.clear();
+	for (size_t y = oldest; y < top; ++y) m_Backscroll.emplace_front(rows[y].release());
+	for (size_t y = top; y < rows.size() && y < top + newSize.y; ++y) m_Workspace.emplace_back(rows[y].release());
+	m_Size = newSize;
+	SetCursor({std::min(cursorX, newSize.x), static_cast<int>(cursorRow - top)});
+	PromptPosReset();
+}
+
 void Table::Resize(const Coord newSize)
 {
 	if (newSize.x < 1 || newSize.y < 1)
 	{
 		_ASSERTE(newSize.x >= 1 && newSize.y >= 1);
+		return;
+	}
+
+	if (m_Reflow && !m_Flags.Region && newSize.x != m_Size.x)
+	{
+		ReflowResize(newSize);
 		return;
 	}
 
@@ -903,7 +1052,7 @@ void Table::Resize(const Coord newSize)
 			break;
 		if (m_BackscrollMax != 0)
 			m_Backscroll.push_front(m_Workspace[drop_row]);
-		if (m_BackscrollMax >= 0 || (ssize_t)m_Backscroll.size() > m_BackscrollMax)
+		if (m_BackscrollMax >= 0 && (ssize_t)m_Backscroll.size() > m_BackscrollMax)
 			m_Backscroll.erase(m_Backscroll.begin() + m_BackscrollMax, m_Backscroll.end());
 		++drop_row;
 		--m_Size.y;
@@ -1043,7 +1192,7 @@ iRow Table::GetRow(unsigned row)
 	{
 		m_Workspace.emplace_back(new Row{m_Attr});
 	}
-	return iRow(idx, m_Workspace[idx]);
+	return iRow(idx, m_Workspace[idx].get());
 }
 
 void Table::Scroll(int dir)
@@ -1132,7 +1281,7 @@ void Table::DoAutoScroll(int dir)
 		const unsigned to_row = (step > 0) ? rgn.Bottom : unsigned(dst);
 		for (unsigned row = from_row; row <= to_row; ++row)
 		{
-			m_Workspace[row] = new Row{m_Attr};
+			m_Workspace[row].reset(new Row{m_Attr});
 		}
 	}
 
@@ -1200,10 +1349,97 @@ Table::Region Table::GetScrollRegion() const
 	return rgn;
 }
 
+unsigned Table::StoreGrapheme(const std::wstring& text)
+{
+	if (text.empty() || text.size() > 64) return 0;
+	const auto known = m_GraphemeLookup.find(text);
+	if (known != m_GraphemeLookup.end()) return known->second;
+	if (m_Graphemes.size() >= 8192)
+	{
+		std::set<unsigned> used;
+		auto scan = [&](const Row* row) {
+			for (unsigned x = 0; row && x < row->GetLength(); ++x)
+			{
+				Attribute attr; row->GetCellAttr(x, attr);
+				if (attr.graphemeId) used.insert(attr.graphemeId);
+			}
+		};
+		for (const auto& row : m_Backscroll) scan(row.get());
+		for (const auto& row : m_Workspace) scan(row.get());
+		for (auto i = m_Graphemes.begin(); i != m_Graphemes.end();)
+			if (!used.count(i->first)) { m_GraphemeLookup.erase(i->second); i = m_Graphemes.erase(i); } else ++i;
+	}
+	if (m_Graphemes.size() >= 8192) return 0;
+	static std::atomic_uint64_t next{1};
+	const auto candidate = next++;
+	if (candidate > 0xFFFFFFFFu) return 0;
+	const unsigned id = static_cast<unsigned>(candidate);
+	m_Graphemes.emplace(id, text);
+	m_GraphemeLookup.emplace(text, id);
+	return id;
+}
+
+bool Table::AppendGrapheme(const std::wstring& text, unsigned codepoint)
+{
+	if (!m_Cursor.x) return false;
+	unsigned x = m_Cursor.x - 1;
+	Row* row = &*CurrentRow();
+	Attribute attr; row->GetCellAttr(x, attr);
+	if ((attr.attr.attr & COMMON_LVB_TRAILING_BYTE) && x) { --x; row->GetCellAttr(x, attr); }
+	const unsigned oldWidth = (attr.attr.attr & COMMON_LVB_LEADING_BYTE) ? 2 : 1;
+	std::wstring previous;
+	const auto stored = m_Graphemes.find(attr.graphemeId);
+	if (stored != m_Graphemes.end()) previous = stored->second;
+	else previous.assign(1, row->GetCellChar(x));
+	if (previous.empty()) return false;
+	std::vector<unsigned> points;
+	for (size_t i = 0; i < previous.size(); ++i)
+	{
+		unsigned cp = previous[i];
+		if (cp >= 0xD800 && cp <= 0xDBFF && i + 1 < previous.size())
+			cp = 0x10000 + ((cp - 0xD800) << 10) + previous[++i] - 0xDC00;
+		points.push_back(cp);
+	}
+	if (conpty_unicode::BreakBefore(points, codepoint)) return false;
+	previous += text;
+	const unsigned id = StoreGrapheme(previous);
+	if (!id) return false;
+	const unsigned width = oldWidth == 2 || (codepoint >= 0x1F000 && codepoint <= 0x1FAFF) || codepoint == 0xFE0F || codepoint == 0x20E3 ? 2 : 1;
+	if (x + width > m_Size.x)
+	{
+		row->Delete(x, row->GetLength() - x);
+		row->SoftWrapped = true; row->SoftWrapLength = x;
+		LineFeed(true);
+		row = &*CurrentRow(); x = 0;
+	}
+	attr.graphemeId = id;
+	attr.attr.attr &= ~(COMMON_LVB_LEADING_BYTE | COMMON_LVB_TRAILING_BYTE);
+	if (width == 2) attr.attr.attr |= COMMON_LVB_LEADING_BYTE;
+	row->Write(x, attr, L'\x25A1', 1);
+	if (width == 2)
+	{
+		attr.attr.attr &= ~COMMON_LVB_LEADING_BYTE; attr.attr.attr |= COMMON_LVB_TRAILING_BYTE;
+		row->Write(x + 1, attr, L' ', 1);
+	}
+	SetCursor({x + width, m_Cursor.y});
+	return true;
+}
+
 void Table::Write(const wchar_t* text, unsigned count)
 {
 	if (!text || !count)
 		return;
+	if (m_ExtendedUnicode && m_PendingHigh)
+	{
+		const wchar_t pair[2] = {m_PendingHigh, text[0]};
+		m_PendingHigh = 0;
+		if (text[0] >= 0xDC00 && text[0] <= 0xDFFF)
+		{
+			Write(pair, 2); ++text; --count;
+		}
+		else { const wchar_t replacement = 0xFFFD; Write(&replacement, 1); }
+		if (!count) return;
+	}
 
 	if (IsEmpty())
 	{
@@ -1257,27 +1493,68 @@ void Table::Write(const wchar_t* text, unsigned count)
 		// #condata support '\v' (11) and other codes from https://en.wikipedia.org/wiki/Control_character
 
 		default:
+		{
 			// Just a letter
 			// RealConsole can't have non-spacing glyphs, exceptions are processed above
 
 			// First, ensure the cursor is on allowed place
 			SetCursor(m_Cursor);
 			// If AutoWrap allowed and we are at EOL (xterm mode)
-			if (m_Flags.AutoWrap && m_Cursor.x >= m_Size.x)
+			const bool surrogate = text[pos] >= 0xD800 && text[pos] <= 0xDBFF
+				&& pos + 1 < count && text[pos + 1] >= 0xDC00 && text[pos + 1] <= 0xDFFF;
+			if (m_ExtendedUnicode && text[pos] >= 0xD800 && text[pos] <= 0xDBFF && pos + 1 == count)
+			{
+				m_PendingHigh = text[pos];
+				break;
+			}
+			const unsigned codepoint = surrogate ? 0x10000 + ((text[pos] - 0xD800) << 10) + text[pos + 1] - 0xDC00 : text[pos];
+			const std::wstring glyph(text + pos, surrogate ? 2 : 1);
+			if (m_ExtendedUnicode && AppendGrapheme(glyph, codepoint))
+			{
+				if (surrogate) ++pos;
+				break;
+			}
+			unsigned width = (!m_ExtendedUnicode && surrogate) || get_wcwidth(codepoint) == 2 || (codepoint >= 0x1F000 && codepoint <= 0x1FAFF) ? 2 : 1;
+			width = std::min(width, m_Size.x);
+			if (m_Flags.AutoWrap && m_Cursor.x + width > m_Size.x)
+			{
+				CurrentRow()->SoftWrapped = true;
+				CurrentRow()->SoftWrapLength = m_Cursor.x;
 				LineFeed(true);
+			}
 
 			// They should not go to the console data (processed above)
 			_ASSERTE(text[pos]!=L'\n' && text[pos]!=L'\r' && text[pos]!=L'\t' && text[pos]!=L'\b' && text[pos]!=7/*bell*/);
 
-			// Write character one-by-one
-			CurrentRow()->Write(m_Cursor.x, m_Attr, text + pos, 1);
+			if (InsertMode) CurrentRow()->Insert(m_Cursor.x, m_Attr, L' ', width);
+
+			// Extended graphemes have a legacy placeholder plus lossless GUI metadata.
+			auto firstAttr = m_Attr;
+			if (m_ExtendedUnicode && surrogate) firstAttr.graphemeId = StoreGrapheme(glyph);
+			const bool extended = firstAttr.graphemeId != 0;
+			if (width == 2 && (!surrogate || extended)) firstAttr.attr.attr |= COMMON_LVB_LEADING_BYTE;
+			CurrentRow()->Write(m_Cursor.x, firstAttr, extended ? L'□' : text[pos], 1);
+			if (width == 2 && m_Cursor.x + 1 < m_Size.x)
+			{
+				auto secondAttr = firstAttr;
+				secondAttr.attr.attr &= ~COMMON_LVB_LEADING_BYTE;
+				if (!surrogate || extended) secondAttr.attr.attr |= COMMON_LVB_TRAILING_BYTE;
+				CurrentRow()->Write(m_Cursor.x + 1, secondAttr, extended ? L' ' : (surrogate ? text[pos + 1] : text[pos]), 1);
+			}
+			if (surrogate)
+				++pos;
 
 			// advance cursor position
-			SetCursor({m_Cursor.x + 1, m_Cursor.y});
+			SetCursor({m_Cursor.x + width, m_Cursor.y});
 
 			// And in WinApi mode do line feed
 			if (m_Flags.AutoWrap && !m_Flags.BeyondEOL && m_Cursor.x >= m_Size.x)
+			{
+				CurrentRow()->SoftWrapped = true;
+				CurrentRow()->SoftWrapLength = m_Cursor.x;
 				LineFeed(true);
+			}
+		}
 		}
 	}
 }
@@ -1324,7 +1601,7 @@ void Table::InsertRow(unsigned count /*= 1*/)
 	const auto sz = GetSize();
 	auto row = CurrentRow();
 	decltype(m_Workspace) elements(count);
-	for (unsigned i = 0; i < count; ++i) elements[i] = new Row{m_Attr};
+	for (unsigned i = 0; i < count; ++i) elements[i].reset(new Row{m_Attr});
 	m_Workspace.insert(m_Workspace.begin() + row.index, elements.begin(), elements.end());
 
 	if (m_Workspace.size() >= (unsigned)sz.y)
@@ -1356,7 +1633,7 @@ void Table::GetData(CharInfo *pData, const Coord& bufSize, const RECT& rgn) cons
 {
 	if (!pData || bufSize.x < 1 || bufSize.y < 1)
 		throw console_error("Empty buffer passed to Table::GetData");
-	if (IsRectEmpty(&rgn))
+	if (rgn.right < rgn.left || rgn.bottom < rgn.top)
 		return; // nothing to read
 
 	CharInfo* ptr = pData;
@@ -1374,7 +1651,7 @@ void Table::GetData(CharInfo *pData, const Coord& bufSize, const RECT& rgn) cons
 		{
 			size_t back_idx = size_t(-(y+1));
 			if (back_idx < m_Backscroll.size())
-				row = (m_Backscroll[back_idx]);
+				row = m_Backscroll[back_idx].get();
 			else
 				row = nullptr;
 		}
@@ -1382,7 +1659,7 @@ void Table::GetData(CharInfo *pData, const Coord& bufSize, const RECT& rgn) cons
 		{
 			size_t work_idx = size_t(y);
 			if (work_idx < m_Workspace.size())
-				row = (m_Workspace[work_idx]);
+				row = m_Workspace[work_idx].get();
 			else
 				row = nullptr;
 		}
@@ -1410,6 +1687,7 @@ void Table::GetData(CharInfo *pData, const Coord& bufSize, const RECT& rgn) cons
 				dst.chr = row->GetCellChar(x + from_x);
 				hint = row->GetCellAttr(x + from_x, attr, hint);
 				dst.attr = attr;
+				if (x + from_x >= row->GetLength()) { dst.attr.hyperlinkId = 0; dst.attr.graphemeId = 0; }
 			}
 		}
 		for (; x < bufSize.x; ++x)
@@ -1417,6 +1695,7 @@ void Table::GetData(CharInfo *pData, const Coord& bufSize, const RECT& rgn) cons
 			auto& dst = ptr[x];
 			dst.chr = L' ';
 			dst.attr = attr;
+			dst.attr.hyperlinkId = 0; dst.attr.graphemeId = 0;
 		}
 		ptr += bufSize.x;
 	}
@@ -1428,6 +1707,7 @@ void Table::GetData(CharInfo *pData, const Coord& bufSize, const RECT& rgn) cons
 			auto& dst = ptr[x];
 			dst.chr = L' ';
 			dst.attr = attr;
+			dst.attr.hyperlinkId = 0; dst.attr.graphemeId = 0;
 		}
 		ptr += bufSize.x;
 	}

@@ -2628,8 +2628,8 @@ static void CreateWslTask()
 				CEStr distrName;
 				if (RegGetStringValue(hkDistr, nullptr, L"DistributionName", distrName) > 0)
 				{
-					const CEStr taskName(L"WSL::", distrName);
-					const CEStr params(L" -cur_console:pm:/mnt --distribution ", distrName);
+					const CEStr taskName(L"WSL::", distrName.c_str());
+					const CEStr params(L" -cur_console:pm:/mnt --distribution ", distrName.c_str());
 					obj->taskCreator.Add(taskName, params, nullptr, nullptr, obj->wslLoader, nullptr);
 				}
 				return true;
