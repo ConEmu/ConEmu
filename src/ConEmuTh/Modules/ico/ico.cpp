@@ -32,7 +32,7 @@ using namespace std;
 #include <gdiplus.h>
 #include <crtdbg.h>
 #include "../../../common/MStrSafe.h"
-#include "../../../common/Defines.h"
+#include "../../../common/defines.h"
 #include "../../../common/Memory.h"
 #include "../ThumbSDK.h"
 #include "../MStream.h"

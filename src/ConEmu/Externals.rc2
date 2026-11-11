@@ -42,7 +42,7 @@ IDB_FLATTR              BITMAP                  "graphics/flattr.bmp"
 IDI_ICON1               ICON                    "ConEmu.ico"
 IDI_ICON4               ICON                    "ConEmu15.ico"
 IDI_ICON2               ICON                    "Far.ico"
-IDI_ICON3               ICON                    "Far2.ico"
-IDI_SHIELD              ICON                    "shield.ico"
+IDI_ICON3               ICON                    "FAR2.ico"
+IDI_SHIELD              ICON                    "Shield.ico"
 
 #endif

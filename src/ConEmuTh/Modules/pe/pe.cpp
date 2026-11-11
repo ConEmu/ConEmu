@@ -46,7 +46,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef verc0_EXPORTS
 	#include "../ThumbSDK.h"
 	#include "../../../common/MStrSafe.h"
-	#include "../../../common/Defines.h"
+	#include "../../../common/defines.h"
 	#include "../../../common/Memory.h"
 #else
 	#define _wsprintf wsprintfW
