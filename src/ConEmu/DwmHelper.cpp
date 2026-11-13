@@ -32,6 +32,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define HIDE_USE_EXCEPTION_INFO
 #include "Header.h"
 #include "DwmApi_Part.h"
+#include "DarkMode.h"
 #include "ConEmu.h"
 #include "Options.h"
 #include "IatHook.h"
@@ -104,6 +105,29 @@ void CDwmHelper::RefreshTitleBarThemeColor(HWND hWnd)
 			return TRUE;
 		}, 0);
 	}
+}
+
+bool CDwmHelper::UpdateConsoleCaptionColors(HWND window)
+{
+	if (!window || !dwm._DwmSetWindowAttribute || global::g_buildNumber < 22000)
+		return false;
+
+	COLORREF background = DefaultCaptionColor;
+	COLORREF foreground = DefaultCaptionColor;
+	DarkMode::GetConsoleChromeColors(background, foreground);
+	if (background == captionBackground_ && foreground == captionForeground_)
+		return false;
+
+	// DWMWA_CAPTION_COLOR and DWMWA_TEXT_COLOR are Windows 11 attributes.
+	constexpr DWORD captionColor = 35;
+	constexpr DWORD textColor = 36;
+	if (FAILED(dwm._DwmSetWindowAttribute(window, captionColor, &background, sizeof(background))))
+		return false;
+
+	dwm._DwmSetWindowAttribute(window, textColor, &foreground, sizeof(foreground));
+	captionBackground_ = background;
+	captionForeground_ = foreground;
+	return true;
 }
 
 bool IsColorSchemeChangeMessage(LPARAM lParam)

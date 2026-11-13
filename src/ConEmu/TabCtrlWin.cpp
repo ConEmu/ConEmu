@@ -176,6 +176,122 @@ static void PaintConsoleTabs(HWND tabs, HDC dc)
 	RestoreDC(dc, saved);
 }
 
+// Draw on a 4x surface and filter down to the current DPI. This keeps the
+// edges smooth without depending on a fixed-resolution toolbar bitmap.
+static bool PaintToolbarGlyph(HDC dc, int left, int top, int size, int command,
+	int bitmap, COLORREF background, COLORREF foreground)
+{
+	const int units = 20;
+	const int pixels = size * 4;
+	const HDC canvas = CreateCompatibleDC(dc);
+	if (!canvas)
+		return false;
+	const HBITMAP image = CreateCompatibleBitmap(dc, pixels, pixels);
+	if (!image)
+	{
+		DeleteDC(canvas);
+		return false;
+	}
+
+	const auto oldBitmap = SelectObject(canvas, image);
+	RECT surface = {0, 0, pixels, pixels};
+	FillRect(canvas, &surface, DarkMode::Brush(canvas, background));
+	const auto scale = [pixels, units](int value) { return MulDiv(value, pixels, units); };
+	const auto line = [&](int x1, int y1, int x2, int y2) {
+		MoveToEx(canvas, scale(x1), scale(y1), nullptr);
+		LineTo(canvas, scale(x2), scale(y2));
+	};
+	const auto rectangle = [&](int x1, int y1, int x2, int y2) {
+		Rectangle(canvas, scale(x1), scale(y1), scale(x2), scale(y2));
+	};
+	const HPEN pen = CreatePen(PS_SOLID, std::max(1, scale(2)),
+		command == TID_CREATE_CON && foreground == DarkMode::Text ? RGB(116, 211, 141) : foreground);
+	const auto oldPen = SelectObject(canvas, pen);
+	const auto oldBrush = SelectObject(canvas, GetStockObject(NULL_BRUSH));
+	bool drawn = true;
+
+	switch (command)
+	{
+	case TID_CREATE_CON:
+		line(4, 10, 17, 10);
+		line(10, 4, 10, 17);
+		break;
+	case TID_ACTIVE_NUMBER:
+	{
+		if (bitmap < BID_FIST_CON || bitmap > BID_LAST_CON)
+		{
+			drawn = false;
+			break;
+		}
+		wchar_t number[8] = {};
+		swprintf_c(number, L"%d", bitmap - BID_FIST_CON + 1);
+		const HFONT font = CreateFontW(-scale(16), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
+			DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY,
+			DEFAULT_PITCH, L"Segoe UI");
+		const auto oldFont = SelectObject(canvas, font);
+		SetBkMode(canvas, TRANSPARENT);
+		SetTextColor(canvas, foreground);
+		DrawTextW(canvas, number, -1, &surface, DT_SINGLELINE | DT_CENTER | DT_VCENTER);
+		SelectObject(canvas, oldFont);
+		DeleteObject(font);
+		break;
+	}
+	case TID_ALTERNATIVE:
+		RoundRect(canvas, scale(5), scale(9), scale(16), scale(18), scale(2), scale(2));
+		Arc(canvas, scale(7), scale(3), scale(14), scale(14),
+			scale(14), scale(9), scale(7), scale(9));
+		line(10, 12, 10, 15);
+		break;
+	case TID_SCROLL:
+		rectangle(3, 3, 17, 17);
+		line(12, 4, 12, 17);
+		line(14, 6, 14, 11);
+		break;
+	case TID_SYSMENU:
+		line(3, 5, 18, 5);
+		line(3, 10, 18, 10);
+		line(3, 15, 18, 15);
+		break;
+	case TID_MINIMIZE:
+		line(4, 14, 17, 14);
+		break;
+	case TID_MAXIMIZE:
+		if (bitmap == BID_RESTORE_IDX)
+		{
+			line(7, 4, 17, 4);
+			line(17, 4, 17, 14);
+			rectangle(3, 7, 14, 17);
+		}
+		else
+			rectangle(4, 4, 16, 16);
+		break;
+	case TID_APPCLOSE:
+		line(5, 5, 16, 16);
+		line(15, 5, 4, 16);
+		break;
+	default:
+		drawn = false;
+		break;
+	}
+
+	if (drawn)
+	{
+		const int oldMode = SetStretchBltMode(dc, HALFTONE);
+		POINT oldOrigin = {};
+		SetBrushOrgEx(dc, 0, 0, &oldOrigin);
+		drawn = StretchBlt(dc, left, top, size, size, canvas, 0, 0, pixels, pixels, SRCCOPY) != FALSE;
+		SetBrushOrgEx(dc, oldOrigin.x, oldOrigin.y, nullptr);
+		SetStretchBltMode(dc, oldMode);
+	}
+	SelectObject(canvas, oldBrush);
+	SelectObject(canvas, oldPen);
+	DeleteObject(pen);
+	SelectObject(canvas, oldBitmap);
+	DeleteObject(image);
+	DeleteDC(canvas);
+	return drawn;
+}
+
 static void PaintConsoleToolbar(HWND toolbar, HDC dc)
 {
 	const auto colors = GetTabPalette();
@@ -207,27 +323,32 @@ static void PaintConsoleToolbar(HWND toolbar, HDC dc)
 		const bool checked = (button.fsState & TBSTATE_CHECKED) != 0;
 		const bool hovered = enabled && i == hot;
 		const bool highlighted = pressed || checked || hovered;
+		const auto background = !highlighted ? colors.strip : dark && pressed ? RGB(80, 80, 80)
+			: dark && hovered ? DarkMode::Hover : colors.active;
+		const auto foreground = dark && !enabled ? DarkMode::Hint
+			: highlighted ? colors.activeText : colors.stripText;
 		if (highlighted)
-		{
-			SetDCBrushColor(dc, dark && pressed ? RGB(80, 80, 80)
-				: dark && hovered ? DarkMode::Hover : colors.active);
-			FillRect(dc, &item, brush);
-		}
+			FillRect(dc, &item, DarkMode::Brush(dc, background));
+
 		const bool dropdown = (button.fsStyle & (BTNS_DROPDOWN | BTNS_WHOLEDROPDOWN)) != 0;
 		const int arrowWidth = dropdown ? std::max(8, iconWidth / 2) : 0;
 		const int centerY = (item.top + item.bottom) / 2;
-		if (icons && button.iBitmap >= 0)
-			ImageList_Draw(icons, button.iBitmap, dc,
-				(item.left + item.right - arrowWidth - iconWidth) / 2, centerY - iconHeight / 2,
+		const int x = (item.left + item.right - arrowWidth - iconWidth) / 2;
+		if (icons && button.iBitmap >= 0
+			&& (!dark || iconWidth < 12 || !PaintToolbarGlyph(dc, x, centerY - iconWidth / 2, iconWidth,
+				button.idCommand, button.iBitmap, background, foreground)))
+		{
+			ImageList_Draw(icons, button.iBitmap, dc, x, centerY - iconHeight / 2,
 				enabled ? ILD_TRANSPARENT : ILD_BLEND50);
+		}
+
 		if (dropdown)
 		{
 			const int x = item.right - arrowWidth / 2;
 			const POINT arrow[] = {{x - 3, centerY - 1}, {x + 3, centerY - 1}, {x, centerY + 3}};
 			SelectObject(dc, GetStockObject(NULL_PEN));
 			SelectObject(dc, brush);
-			SetDCBrushColor(dc, dark && !enabled ? DarkMode::Hint
-				: highlighted ? colors.activeText : colors.stripText);
+			SetDCBrushColor(dc, foreground);
 			Polygon(dc, arrow, countof(arrow));
 		}
 	}

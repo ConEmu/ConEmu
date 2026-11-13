@@ -42,6 +42,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "../common/WUser.h"
 
 #include "ConEmu.h"
+#include "DarkMode.h"
 #include "Inside.h"
 #include "Menu.h"
 #include "Options.h"
@@ -482,6 +483,9 @@ void CStatus::PaintStatus(HDC hPaint, LPRECT prcStatus /*= nullptr*/)
 	COLORREF crBack = lbSysColor ? GetSysColor(COLOR_3DFACE) : lbFade ? gpSet->GetFadeColor(gpSet->nStatusBarBack) : gpSet->nStatusBarBack;
 	COLORREF crText = lbSysColor ? GetSysColor(COLOR_BTNTEXT) : lbFade ? gpSet->GetFadeColor(gpSet->nStatusBarLight) : gpSet->nStatusBarLight;
 	COLORREF crDash = lbSysColor ? GetSysColor(COLOR_3DSHADOW) : lbFade ? gpSet->GetFadeColor(gpSet->nStatusBarDark) : gpSet->nStatusBarDark;
+
+	if (DarkMode::GetConsoleChromeColors(crBack, crText))
+		crDash = CDwmHelper::BlendColors(crBack, crText, 30);
 
 	HBRUSH hBr = CreateSolidBrush(crBack);
 	//HPEN hLight = CreatePen(PS_SOLID, 1, GetSysColor(COLOR_3DSHADOW));

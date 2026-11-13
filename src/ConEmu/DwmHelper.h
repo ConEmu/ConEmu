@@ -179,6 +179,7 @@ public:
 	void EnableTheming(bool abTheme);
 	void SetWindowTheme(HWND hWnd, LPCWSTR pszSubAppName, LPCWSTR pszSubIdList);
 	void RefreshTitleBarThemeColor(HWND hWnd);
+	bool UpdateConsoleCaptionColors(HWND window);
 	void EnableBlurBehind(bool abBlurBehindClient);
 	bool ExtendWindowFrame();
 	bool ExtendWindowFrame(HWND hWnd, const RECT& rcMargins);
@@ -209,6 +210,9 @@ public:
 	// Per-monitor DPI support
 	BOOL AdjustWindowRectExForDpi(LPRECT lpRect, DWORD dwStyle, BOOL bMenu, DWORD dwExStyle, UINT dpi);
 private:
+	static constexpr COLORREF DefaultCaptionColor = 0xFFFFFFFF;
+	COLORREF captionBackground_ = DefaultCaptionColor;
+	COLORREF captionForeground_ = DefaultCaptionColor;
 	HMODULE mh_User32 = nullptr;
 	HMODULE mh_DwmApi = nullptr;
 	HMODULE mh_UxTheme = nullptr;

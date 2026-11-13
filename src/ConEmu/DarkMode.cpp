@@ -1,10 +1,14 @@
 #define HIDE_USE_EXCEPTION_INFO
 #include "Header.h"
 #include <commctrl.h>
+#include <cmath>
 #include "ConEmu.h"
 #include "DarkMode.h"
 #include "SetDlgColors.h"
 #include "DlgItemHelper.h"
+#include "Options.h"
+#include "RealConsole.h"
+#include "VirtualConsole.h"
 
 namespace DarkMode
 {
@@ -283,6 +287,37 @@ HBRUSH ControlColor(HWND control, HDC dc, UINT message)
 	SetTextColor(dc, IsWindowEnabled(control) ? Text : Hint);
 	SetBkColor(dc, background);
 	return Brush(dc, background);
+}
+
+bool GetConsoleChromeColors(COLORREF& background, COLORREF& foreground)
+{
+	if (!global::g_darkModeEnabled)
+		return false;
+
+	CVConGuard active;
+	if (gpConEmu->GetActiveVCon(&active) < 0 || !active->RCon())
+		return false;
+
+	const bool fade = gpSet->isFadeInactive && !gpConEmu->InQuakeAnimation()
+		&& !gpConEmu->isMeForeground(true);
+	const auto colors = active->GetColors(fade);
+	background = colors[active->RCon()->GetDefaultBackColorIdx()];
+
+	// Use the preferred text color when it is legible on this palette.
+	const auto luminance = [](COLORREF color) {
+		const auto linear = [](double channel) {
+			channel /= 255.0;
+			return channel <= 0.04045 ? channel / 12.92 : std::pow((channel + 0.055) / 1.055, 2.4);
+		};
+		return 0.2126 * linear(GetRValue(color)) + 0.7152 * linear(GetGValue(color))
+			+ 0.0722 * linear(GetBValue(color));
+	};
+	const double bg = luminance(background);
+	foreground = colors[active->RCon()->GetDefaultTextColorIdx()];
+	const double fg = luminance(foreground);
+	if ((std::max(bg, fg) + 0.05) / (std::min(bg, fg) + 0.05) < 4.5)
+		foreground = bg >= 0.179 ? RGB(0, 0, 0) : RGB(255, 255, 255);
+	return true;
 }
 
 void ApplyDialog(HWND dialog)
