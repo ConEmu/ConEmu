@@ -805,6 +805,8 @@ void PatchMsgBoxIcon(HWND hWnd, UINT messg, WPARAM wParam, LPARAM lParam)
 			{
 				// Reset immediately, to avoid stack overflow
 				ghDlgPendingFrom = nullptr;
+				if (gpConEmu && CDwmHelper::IsWindowsDarkMode())
+					gpConEmu->EnableDarkCaption(hFore);
 				// And patch the icon
 				SendMessage(hFore, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(hClassIcon));
 				SendMessage(hFore, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(hClassIconSm));

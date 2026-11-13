@@ -83,6 +83,7 @@ public:
 	HBITMAP GetBitmap();
 
 	bool PaintButton(int iBtn, HDC hdcDst, int nDstX, int nDstY, int nDstWidth, int nDstHeight) const;
+	bool PaintButtonTransparent(int iBtn, HDC dc, int x, int y) const;
 	bool GetSizeForHeight(int nPreferHeight, int& nDispW, int& nDispH);
 
 	/*

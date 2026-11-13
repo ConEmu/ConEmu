@@ -1,4 +1,4 @@
-﻿
+
 // WM_DRAWITEM, SS_OWNERDRAW|SS_NOTIFY, Bmp & hBmp -> global vars
 // DPI resize.
 
@@ -34,6 +34,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define SHOWDEBUGSTR
 
 #include "Header.h"
+#include "DarkMode.h"
 #include "About.h"
 #include "AboutDlg.h"
 #include "ConEmu.h"
@@ -97,6 +98,7 @@ namespace ConEmuAbout
 INT_PTR WINAPI ConEmuAbout::aboutProc(HWND hDlg, UINT messg, WPARAM wParam, LPARAM lParam)
 {
 	INT_PTR lRc = 0;
+	if (DarkMode::ProcessDialogMessage(hDlg, messg, wParam, lParam, lRc)) return lRc;
 	if ((mp_ImgBtn && mp_ImgBtn->Process(hDlg, messg, wParam, lParam, lRc))
 		|| EditIconHint_Process(hDlg, messg, wParam, lParam, lRc))
 	{
@@ -105,6 +107,7 @@ INT_PTR WINAPI ConEmuAbout::aboutProc(HWND hDlg, UINT messg, WPARAM wParam, LPAR
 	}
 
 	PatchMsgBoxIcon(hDlg, messg, wParam, lParam);
+
 
 	switch (messg)
 	{
@@ -130,6 +133,23 @@ INT_PTR WINAPI ConEmuAbout::aboutProc(HWND hDlg, UINT messg, WPARAM wParam, LPAR
 			if ((ghOpWnd && IsWindow(ghOpWnd)) || (WS_EX_TOPMOST & GetWindowLongPtr(ghWnd, GWL_EXSTYLE)))
 			{
 				SetWindowPos(hDlg, HWND_TOPMOST, 0,0,0,0, SWP_NOMOVE|SWP_NOSIZE);
+			}
+
+			if (global::g_darkModeSupported)
+			{
+				HWND hOkBtn = GetDlgItem(hDlg, IDOK);
+				if (hOkBtn)
+					gpConEmu->SetWindowTheme(hOkBtn, L"Explorer", nullptr);
+
+				HWND hTab = GetDlgItem(hDlg, tbAboutTabs);
+				if (hTab)
+					gpConEmu->SetWindowTheme(hTab, L"Explorer", nullptr);
+
+				HWND hEdit = GetDlgItem(hDlg, tAboutSearch);
+				if (hEdit)
+					gpConEmu->SetWindowTheme(hEdit, L"Explorer", nullptr);
+
+				SendMessageW(hDlg, WM_THEMECHANGED, 0, 0);
 			}
 
 			const wchar_t* pszActivePage = reinterpret_cast<LPCWSTR>(lParam);
@@ -214,14 +234,12 @@ INT_PTR WINAPI ConEmuAbout::aboutProc(HWND hDlg, UINT messg, WPARAM wParam, LPAR
 				TabSelected(hDlg, static_cast<int>(nPage));
 				TabCtrl_SetCurSel(hTab, static_cast<int>(nPage));
 			}
-			else if (!pszActivePage)
-			{
-				TabSelected(hDlg, 0);
-			}
 			else
 			{
-				_ASSERTE(pszActivePage==nullptr && "Unknown page name?");
+				TabSelected(hDlg, 0);
+				TabCtrl_SetCurSel(hTab, 0);
 			}
+			DarkMode::ApplyDialog(hDlg);
 
 			SetFocus(hTab);
 
@@ -229,6 +247,11 @@ INT_PTR WINAPI ConEmuAbout::aboutProc(HWND hDlg, UINT messg, WPARAM wParam, LPAR
 		}
 
 		case WM_CTLCOLORSTATIC:
+		{
+			if (const auto brush = CSettings::SettingsThemeBrush(messg,
+				reinterpret_cast<HDC>(wParam), reinterpret_cast<HWND>(lParam),
+				GetDlgCtrlID(reinterpret_cast<HWND>(lParam)) == stConEmuUrl))
+				return brush;
 			if (GetWindowLongPtr(reinterpret_cast<HWND>(lParam), GWLP_ID) == stConEmuUrl)
 			{
 				SetTextColor(reinterpret_cast<HDC>(wParam), GetSysColor(COLOR_HOTLIGHT));
@@ -243,6 +266,7 @@ INT_PTR WINAPI ConEmuAbout::aboutProc(HWND hDlg, UINT messg, WPARAM wParam, LPAR
 				SetBkMode(reinterpret_cast<HDC>(wParam), TRANSPARENT);
 				return reinterpret_cast<INT_PTR>(hBrush);
 			}
+		}
 
 		case WM_SETCURSOR:
 			{
@@ -323,6 +347,7 @@ INT_PTR WINAPI ConEmuAbout::aboutProc(HWND hDlg, UINT messg, WPARAM wParam, LPAR
 		case WM_DESTROY:
 			mh_AboutDlg = nullptr;
 			break;
+
 
 		default:
 			if (mp_DpiAware && mp_DpiAware->ProcessDpiMessages(hDlg, messg, wParam, lParam))

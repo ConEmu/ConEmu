@@ -1,4 +1,4 @@
-﻿
+
 /*
 Copyright (c) 2009-present Maximus5
 All rights reserved.
@@ -26,16 +26,176 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+// Dark-mode integration adapted from ysc3839/win32-darkmode (via HO-COOH).
+// See ../../Release/ConEmu/DarkMode-LICENSE.txt for the MIT license notices.
+
 #define HIDE_USE_EXCEPTION_INFO
 #include "Header.h"
 #include "DwmApi_Part.h"
+#include "DarkMode.h"
 #include "ConEmu.h"
 #include "Options.h"
+#include "IatHook.h"
 
 
 
 
 /* *************************** */
+
+namespace global {
+	bool g_darkModeSupported = false;
+	bool g_darkModeEnabled = false;
+	DWORD g_buildNumber = 0;
+}
+
+fnSetWindowCompositionAttribute _SetWindowCompositionAttribute = nullptr;
+fnShouldAppsUseDarkMode _ShouldAppsUseDarkMode = nullptr;
+fnAllowDarkModeForWindow _AllowDarkModeForWindow = nullptr;
+fnAllowDarkModeForApp _AllowDarkModeForApp = nullptr;
+fnFlushMenuThemes _FlushMenuThemes = nullptr;
+fnRefreshImmersiveColorPolicyState _RefreshImmersiveColorPolicyState = nullptr;
+fnIsDarkModeAllowedForWindow _IsDarkModeAllowedForWindow = nullptr;
+fnGetIsImmersiveColorUsingHighContrast _GetIsImmersiveColorUsingHighContrast = nullptr;
+fnOpenNcThemeData _OpenNcThemeData = nullptr;
+fnShouldSystemUseDarkMode _ShouldSystemUseDarkMode = nullptr;
+fnSetPreferredAppMode _SetPreferredAppMode = nullptr;
+
+bool AllowDarkModeForWindow(HWND hWnd, bool allow)
+{
+	if (global::g_darkModeSupported)
+		return _AllowDarkModeForWindow(hWnd, allow);
+	return false;
+}
+
+bool IsHighContrast()
+{
+	return CDwmHelper::IsHighContrast();
+}
+
+void CDwmHelper::RefreshTitleBarThemeColor(HWND hWnd)
+{
+	if (!hWnd || !global::g_darkModeSupported)
+		return;
+
+	global::g_darkModeEnabled = _ShouldAppsUseDarkMode() && !IsHighContrast();
+	BOOL dark = global::g_darkModeEnabled;
+	_AllowDarkModeForWindow(hWnd, dark != FALSE);
+
+	// Prefer the DWM attribute on current Windows. Keep the older Windows 10
+	// paths, and resolve DWM dynamically as with the other optional APIs.
+	const DWORD useImmersiveDarkMode = 20;
+	const HRESULT hr = dwm._DwmSetWindowAttribute
+		? dwm._DwmSetWindowAttribute(hWnd, useImmersiveDarkMode, &dark, sizeof(dark))
+		: E_NOTIMPL;
+	if (FAILED(hr) && global::g_buildNumber < 18362)
+		SetPropW(hWnd, L"UseImmersiveDarkModeColors", reinterpret_cast<HANDLE>(static_cast<INT_PTR>(dark)));
+	else if (FAILED(hr) && _SetWindowCompositionAttribute)
+	{
+		WINDOWCOMPOSITIONATTRIBDATA data = { WCA_USEDARKMODECOLORS, &dark, sizeof(dark) };
+		_SetWindowCompositionAttribute(hWnd, &data);
+	}
+
+	RedrawWindow(hWnd, nullptr, nullptr, RDW_INVALIDATE | RDW_FRAME);
+	if (hWnd == ghWnd)
+	{
+		EnumChildWindows(hWnd, [](HWND child, LPARAM) -> BOOL
+		{
+			SendMessage(child, WM_THEMECHANGED, 0, 0);
+			RedrawWindow(child, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_FRAME);
+			return TRUE;
+		}, 0);
+	}
+}
+
+bool CDwmHelper::UpdateConsoleCaptionColors(HWND window)
+{
+	if (!window || !dwm._DwmSetWindowAttribute || global::g_buildNumber < 22000)
+		return false;
+
+	COLORREF background = DefaultCaptionColor;
+	COLORREF foreground = DefaultCaptionColor;
+	DarkMode::GetConsoleChromeColors(background, foreground);
+	if (background == captionBackground_ && foreground == captionForeground_)
+		return false;
+
+	// DWMWA_CAPTION_COLOR and DWMWA_TEXT_COLOR are Windows 11 attributes.
+	constexpr DWORD captionColor = 35;
+	constexpr DWORD textColor = 36;
+	if (FAILED(dwm._DwmSetWindowAttribute(window, captionColor, &background, sizeof(background))))
+		return false;
+
+	dwm._DwmSetWindowAttribute(window, textColor, &foreground, sizeof(foreground));
+	captionBackground_ = background;
+	captionForeground_ = foreground;
+	return true;
+}
+
+bool IsColorSchemeChangeMessage(LPARAM lParam)
+{
+	bool is = false;
+	if (!global::g_darkModeSupported)
+		return false;
+	if (lParam && lstrcmpiW(reinterpret_cast<LPCWSTR>(lParam), L"ImmersiveColorSet") == 0)
+	{
+		_RefreshImmersiveColorPolicyState();
+		is = true;
+	}
+	if (_GetIsImmersiveColorUsingHighContrast)
+		_GetIsImmersiveColorUsingHighContrast(IHCM_REFRESH);
+	return is;
+}
+
+bool IsColorSchemeChangeMessage(UINT message, LPARAM lParam)
+{
+	if (message == WM_SETTINGCHANGE)
+		return IsColorSchemeChangeMessage(lParam);
+	return false;
+}
+
+void AllowDarkModeForApp(bool allow)
+{
+	if (_AllowDarkModeForApp)
+		_AllowDarkModeForApp(allow);
+	else if (_SetPreferredAppMode)
+		_SetPreferredAppMode(allow ? AllowDark : Default);
+}
+
+static HANDLE WINAPI MyOpenThemeData(HWND hWnd, LPCWSTR classList)
+{
+	if (classList && wcscmp(classList, L"ScrollBar") == 0
+		&& global::g_darkModeSupported && _ShouldAppsUseDarkMode()
+		&& !IsHighContrast())
+	{
+		hWnd = nullptr;
+		classList = L"Explorer::ScrollBar";
+	}
+	return _OpenNcThemeData(hWnd, classList);
+}
+
+void FixDarkScrollBar()
+{
+	// Ensure _OpenNcThemeData is initialized before attempting to hook
+	if (!global::g_darkModeSupported || !_OpenNcThemeData)
+		return;
+
+	HMODULE hComctl = LoadLibraryExW(L"comctl32.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+	if (hComctl)
+	{
+		auto addr = FindDelayLoadThunkInModule(hComctl, "uxtheme.dll", static_cast<uint16_t>(49)); // OpenNcThemeData
+		if (addr)
+		{
+			DWORD oldProtect;
+			if (VirtualProtect(addr, sizeof(IMAGE_THUNK_DATA), PAGE_READWRITE, &oldProtect))
+			{
+				addr->u1.Function = reinterpret_cast<ULONG_PTR>(static_cast<fnOpenNcThemeData>(MyOpenThemeData));
+				VirtualProtect(addr, sizeof(IMAGE_THUNK_DATA), oldProtect, &oldProtect);
+			}
+		}
+		FreeLibrary(hComctl);
+	}
+}
+
+
 
 CDwmHelper::CDwmHelper()
 {
@@ -133,7 +293,7 @@ void CDwmHelper::InitDwm()
 
 	if (gOSVer.dwMajorVersion >= 6 || (gOSVer.dwMajorVersion == 5 && gOSVer.dwMinorVersion >= 1))
 	{
-		mh_UxTheme = LoadLibrary(_T("UxTheme.dll"));
+		mh_UxTheme = LoadLibraryExW(_T("UxTheme.dll"), nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
 		if (mh_UxTheme)
 		{
 			// XP+
@@ -157,6 +317,8 @@ void CDwmHelper::InitDwm()
 			ux._EndBufferedPaint = (UX::EndBufferedPaint_t)GetProcAddress(mh_UxTheme, "EndBufferedPaint");
 			ux._DrawThemeTextEx = (UX::DrawThemeTextEx_t)GetProcAddress(mh_UxTheme, "DrawThemeTextEx");
 			ux._SetWindowTheme = (UX::SetWindowTheme_t)GetProcAddress(mh_UxTheme, "SetWindowTheme");
+			// Win10+
+
 
 			mb_ThemeAllowed = (ux._IsAppThemed != nullptr) && (ux._IsThemeActive != nullptr);
 			if (mb_ThemeAllowed)
@@ -175,6 +337,56 @@ void CDwmHelper::InitDwm()
 	{
 		user._AdjustWindowRectExForDpi = (USER::AdjustWindowRectExForDpi_t)GetProcAddress(mh_User32, "AdjustWindowRectExForDpi");
 	}
+
+	auto RtlGetNtVersionNumbers = reinterpret_cast<fnRtlGetNtVersionNumbers>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "RtlGetNtVersionNumbers"));
+	if (RtlGetNtVersionNumbers)
+	{
+		DWORD major, minor;
+		RtlGetNtVersionNumbers(&major, &minor, &global::g_buildNumber);
+		global::g_buildNumber &= ~0xF0000000;
+		// These ordinals have different meanings on older Windows 10 builds.
+		if (major == 10 && minor == 0 && global::g_buildNumber >= 17763)
+		{
+			HMODULE hUxtheme = mh_UxTheme;
+			if (hUxtheme)
+			{
+				_OpenNcThemeData = reinterpret_cast<fnOpenNcThemeData>(GetProcAddress(hUxtheme, MAKEINTRESOURCEA(49)));
+				_RefreshImmersiveColorPolicyState = reinterpret_cast<fnRefreshImmersiveColorPolicyState>(GetProcAddress(hUxtheme, MAKEINTRESOURCEA(104)));
+				_GetIsImmersiveColorUsingHighContrast = reinterpret_cast<fnGetIsImmersiveColorUsingHighContrast>(GetProcAddress(hUxtheme, MAKEINTRESOURCEA(106)));
+				_ShouldAppsUseDarkMode = reinterpret_cast<fnShouldAppsUseDarkMode>(GetProcAddress(hUxtheme, MAKEINTRESOURCEA(132)));
+				_AllowDarkModeForWindow = reinterpret_cast<fnAllowDarkModeForWindow>(GetProcAddress(hUxtheme, MAKEINTRESOURCEA(133)));
+
+				auto ord135 = GetProcAddress(hUxtheme, MAKEINTRESOURCEA(135));
+				if (global::g_buildNumber < 18362)
+					_AllowDarkModeForApp = reinterpret_cast<fnAllowDarkModeForApp>(ord135);
+				else
+					_SetPreferredAppMode = reinterpret_cast<fnSetPreferredAppMode>(ord135);
+
+				_FlushMenuThemes = reinterpret_cast<fnFlushMenuThemes>(GetProcAddress(hUxtheme, MAKEINTRESOURCEA(136)));
+				_IsDarkModeAllowedForWindow = reinterpret_cast<fnIsDarkModeAllowedForWindow>(GetProcAddress(hUxtheme, MAKEINTRESOURCEA(137)));
+
+				_SetWindowCompositionAttribute = reinterpret_cast<fnSetWindowCompositionAttribute>(GetProcAddress(GetModuleHandleW(L"user32.dll"), "SetWindowCompositionAttribute"));
+
+				if (_RefreshImmersiveColorPolicyState &&
+					_ShouldAppsUseDarkMode &&
+					_AllowDarkModeForWindow &&
+					(_AllowDarkModeForApp || _SetPreferredAppMode) &&
+					_FlushMenuThemes &&
+					_IsDarkModeAllowedForWindow)
+				{
+					global::g_darkModeSupported = true;
+
+					AllowDarkModeForApp(true);
+					_RefreshImmersiveColorPolicyState();
+
+					global::g_darkModeEnabled = _ShouldAppsUseDarkMode() && !IsHighContrast();
+
+					FixDarkScrollBar();
+				}
+			}
+		}
+	}
+
 }
 
 bool CDwmHelper::IsDwm()
@@ -199,6 +411,65 @@ bool CDwmHelper::IsGlass()
 	if (!mb_DwmAllowed || !mb_EnableGlass)
 		return false;
 	return IsDwm();
+}
+
+bool CDwmHelper::IsHighContrast()
+{
+	HIGHCONTRASTW contrast = {sizeof(contrast)};
+	return SystemParametersInfoW(SPI_GETHIGHCONTRAST, sizeof(contrast), &contrast, 0)
+		&& (contrast.dwFlags & HCF_HIGHCONTRASTON);
+}
+
+bool CDwmHelper::IsWindowsDarkMode()
+{
+	if (global::g_darkModeSupported)
+		return _ShouldAppsUseDarkMode() && !IsHighContrast();
+
+	DWORD light = 1, size = sizeof(light);
+	return !IsHighContrast()
+		&& RegGetValueW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+			L"AppsUseLightTheme", RRF_RT_REG_DWORD, nullptr, &light, &size) == ERROR_SUCCESS
+		&& light == 0;
+}
+
+void CDwmHelper::EnableDarkCaption(HWND window)
+{
+	RefreshTitleBarThemeColor(window);
+}
+
+void CDwmHelper::ApplyPopupMenuTheme(HWND owner)
+{
+	if (!global::g_darkModeSupported)
+		return;
+
+	const bool dark = _ShouldAppsUseDarkMode() && !IsHighContrast();
+	if (owner)
+		AllowDarkModeForWindow(owner, dark);
+
+	static int lastMode = -1;
+	if (lastMode != static_cast<int>(dark))
+	{
+		lastMode = static_cast<int>(dark);
+		_FlushMenuThemes();
+	}
+}
+
+COLORREF CDwmHelper::WindowsAccentColor()
+{
+	DWORD color = 0, size = sizeof(color);
+	if (RegGetValueW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\DWM",
+			L"AccentColor", RRF_RT_REG_DWORD, nullptr, &color, &size) == ERROR_SUCCESS)
+		return color & 0x00FFFFFF;
+	return GetSysColor(COLOR_HIGHLIGHT);
+}
+
+COLORREF CDwmHelper::BlendColors(COLORREF base, COLORREF tint, unsigned tintPercent)
+{
+	const auto blend = [tintPercent](unsigned a, unsigned b) {
+		return (a * (100 - tintPercent) + b * tintPercent) / 100;
+	};
+	return RGB(blend(GetRValue(base), GetRValue(tint)), blend(GetGValue(base), GetGValue(tint)),
+		blend(GetBValue(base), GetBValue(tint)));
 }
 
 bool CDwmHelper::IsThemed()

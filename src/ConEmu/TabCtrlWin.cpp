@@ -1,4 +1,4 @@
-﻿
+
 /*
 Copyright (c) 2013-present Maximus5
 All rights reserved.
@@ -38,6 +38,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "../common/defines.h"
 #include "Header.h"
+#include "DarkMode.h"
 #include "TabBar.h"
 #include "TabCtrlBase.h"
 #include "TabCtrlWin.h"
@@ -49,6 +50,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "ToolImg.h"
 #include "VConGroup.h"
 #include "../common/WUser.h"
+#include <cmath>
 
 //WNDPROC CTabPanelWin::_defaultTabProc = nullptr;
 //WNDPROC CTabPanelWin::_defaultToolProc = nullptr;
@@ -63,6 +65,295 @@ enum ReBarIndex
 
 // не используем size, т.к. приходит "новый" размер из висты и в XP обламываемся
 #define REBARBANDINFO_SIZE 80
+
+struct TabPalette
+{
+	COLORREF strip, inactive, active, text, activeText, stripText;
+};
+
+static COLORREF ContrastingText(COLORREF background)
+{
+	const auto linear = [](double channel) {
+		channel /= 255.0;
+		return channel <= 0.04045 ? channel / 12.92 : std::pow((channel + 0.055) / 1.055, 2.4);
+	};
+	const double luminance = 0.2126 * linear(GetRValue(background))
+		+ 0.7152 * linear(GetGValue(background)) + 0.0722 * linear(GetBValue(background));
+	return luminance >= 0.179 ? RGB(0, 0, 0) : RGB(255, 255, 255);
+}
+
+static TabPalette GetTabPalette()
+{
+	if (CDwmHelper::IsHighContrast())
+		return {GetSysColor(COLOR_WINDOW), GetSysColor(COLOR_BTNFACE), GetSysColor(COLOR_HIGHLIGHT),
+			GetSysColor(COLOR_BTNTEXT), GetSysColor(COLOR_HIGHLIGHTTEXT), GetSysColor(COLOR_WINDOWTEXT)};
+
+	const bool dark = CDwmHelper::IsWindowsDarkMode();
+	if (dark)
+		return {DarkMode::Background, RGB(38, 38, 38), DarkMode::Control,
+			DarkMode::Text, DarkMode::Text, DarkMode::Text};
+
+	const auto accent = CDwmHelper::WindowsAccentColor();
+	const auto inactive = CDwmHelper::BlendColors(accent, RGB(255, 255, 255), 20);
+	const auto active = CDwmHelper::BlendColors(accent, RGB(0, 0, 0), 35);
+	return {accent, inactive, active, ContrastingText(inactive), ContrastingText(active), ContrastingText(accent)};
+}
+
+static void PaintConsoleTabs(HWND tabs, HDC dc)
+{
+	const auto colors = GetTabPalette();
+	const int saved = SaveDC(dc);
+	const auto brush = static_cast<HBRUSH>(GetStockObject(DC_BRUSH));
+	RECT client = {};
+	GetClientRect(tabs, &client);
+	SetDCBrushColor(dc, colors.strip);
+	FillRect(dc, &client, brush);
+	SetBkMode(dc, TRANSPARENT);
+	if (const auto font = reinterpret_cast<HFONT>(SendMessage(tabs, WM_GETFONT, 0, 0)))
+		SelectObject(dc, font);
+
+	const auto icons = TabCtrl_GetImageList(tabs);
+	int iconWidth = 0, iconHeight = 0;
+	if (icons)
+		ImageList_GetIconSize(icons, &iconWidth, &iconHeight);
+	const bool highContrast = CDwmHelper::IsHighContrast();
+	const auto alternate = highContrast ? GetSysColor(COLOR_WINDOW)
+		: CDwmHelper::BlendColors(colors.inactive, colors.text, 7);
+	const auto alternateText = highContrast ? GetSysColor(COLOR_WINDOWTEXT)
+		: CDwmHelper::IsWindowsDarkMode() ? DarkMode::Text : ContrastingText(alternate);
+	POINT cursor = {};
+	GetCursorPos(&cursor);
+	ScreenToClient(tabs, &cursor);
+	const bool dark = !highContrast && CDwmHelper::IsWindowsDarkMode();
+	const int selected = TabCtrl_GetCurSel(tabs);
+	const int count = TabCtrl_GetItemCount(tabs);
+	for (int i = 0; i < count; ++i)
+	{
+		RECT item = {}, visible = {};
+		if (!TabCtrl_GetItemRect(tabs, i, &item) || !IntersectRect(&visible, &item, &client))
+			continue;
+
+		wchar_t label[CONEMUTABMAX] = {};
+		TCITEMW info = {};
+		info.mask = TCIF_TEXT | TCIF_IMAGE | TCIF_STATE;
+		info.dwStateMask = TCIS_HIGHLIGHTED;
+		info.pszText = label;
+		info.cchTextMax = countof(label);
+		info.iImage = -1;
+		if (!TabCtrl_GetItem(tabs, i, &info))
+			continue;
+
+		const bool isSelected = (i == selected);
+		const int height = item.bottom - item.top;
+		--item.right;
+		const auto background = isSelected ? colors.active
+			: (dark && PtInRect(&item, cursor) ? DarkMode::Hover
+				: (i % 2 == 0 ? colors.inactive : alternate));
+		const auto foreground = isSelected ? colors.activeText
+			: (i % 2 == 0 ? colors.text : alternateText);
+		SetDCBrushColor(dc, background);
+		FillRect(dc, &item, brush);
+		if (isSelected || (info.dwState & TCIS_HIGHLIGHTED))
+		{
+			RECT mark = item;
+			mark.top = mark.bottom - std::max(2, height / 9);
+			SetDCBrushColor(dc, foreground);
+			FillRect(dc, &mark, brush);
+		}
+
+		const int padding = std::max(3, height / 7);
+		item.left += padding;
+		item.right -= padding;
+		if (gpSet->isTabIcons && icons && info.iImage >= 0 && item.right - item.left > iconWidth)
+		{
+			ImageList_Draw(icons, info.iImage, dc, item.left, item.top + (height - iconHeight) / 2, ILD_TRANSPARENT);
+			item.left += iconWidth + padding;
+		}
+		SetTextColor(dc, foreground);
+		if (item.right > item.left)
+			DrawTextW(dc, label, -1, &item, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX);
+	}
+	RestoreDC(dc, saved);
+}
+
+// Draw on a 4x surface and filter down to the current DPI. This keeps the
+// edges smooth without depending on a fixed-resolution toolbar bitmap.
+static bool PaintToolbarGlyph(HDC dc, int left, int top, int size, int command,
+	int bitmap, COLORREF background, COLORREF foreground)
+{
+	const int units = 20;
+	const int pixels = size * 4;
+	const HDC canvas = CreateCompatibleDC(dc);
+	if (!canvas)
+		return false;
+	const HBITMAP image = CreateCompatibleBitmap(dc, pixels, pixels);
+	if (!image)
+	{
+		DeleteDC(canvas);
+		return false;
+	}
+
+	const auto oldBitmap = SelectObject(canvas, image);
+	RECT surface = {0, 0, pixels, pixels};
+	FillRect(canvas, &surface, DarkMode::Brush(canvas, background));
+	const auto scale = [pixels, units](int value) { return MulDiv(value, pixels, units); };
+	const auto line = [&](int x1, int y1, int x2, int y2) {
+		MoveToEx(canvas, scale(x1), scale(y1), nullptr);
+		LineTo(canvas, scale(x2), scale(y2));
+	};
+	const auto rectangle = [&](int x1, int y1, int x2, int y2) {
+		Rectangle(canvas, scale(x1), scale(y1), scale(x2), scale(y2));
+	};
+	const HPEN pen = CreatePen(PS_SOLID, std::max(1, scale(2)),
+		command == TID_CREATE_CON && foreground == DarkMode::Text ? RGB(116, 211, 141) : foreground);
+	const auto oldPen = SelectObject(canvas, pen);
+	const auto oldBrush = SelectObject(canvas, GetStockObject(NULL_BRUSH));
+	bool drawn = true;
+
+	switch (command)
+	{
+	case TID_CREATE_CON:
+		line(4, 10, 17, 10);
+		line(10, 4, 10, 17);
+		break;
+	case TID_ACTIVE_NUMBER:
+	{
+		if (bitmap < BID_FIST_CON || bitmap > BID_LAST_CON)
+		{
+			drawn = false;
+			break;
+		}
+		wchar_t number[8] = {};
+		swprintf_c(number, L"%d", bitmap - BID_FIST_CON + 1);
+		const HFONT font = CreateFontW(-scale(16), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
+			DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY,
+			DEFAULT_PITCH, L"Segoe UI");
+		const auto oldFont = SelectObject(canvas, font);
+		SetBkMode(canvas, TRANSPARENT);
+		SetTextColor(canvas, foreground);
+		DrawTextW(canvas, number, -1, &surface, DT_SINGLELINE | DT_CENTER | DT_VCENTER);
+		SelectObject(canvas, oldFont);
+		DeleteObject(font);
+		break;
+	}
+	case TID_ALTERNATIVE:
+		RoundRect(canvas, scale(5), scale(9), scale(16), scale(18), scale(2), scale(2));
+		Arc(canvas, scale(7), scale(3), scale(14), scale(14),
+			scale(14), scale(9), scale(7), scale(9));
+		line(10, 12, 10, 15);
+		break;
+	case TID_SCROLL:
+		rectangle(3, 3, 17, 17);
+		line(12, 4, 12, 17);
+		line(14, 6, 14, 11);
+		break;
+	case TID_SYSMENU:
+		line(3, 5, 18, 5);
+		line(3, 10, 18, 10);
+		line(3, 15, 18, 15);
+		break;
+	case TID_MINIMIZE:
+		line(4, 14, 17, 14);
+		break;
+	case TID_MAXIMIZE:
+		if (bitmap == BID_RESTORE_IDX)
+		{
+			line(7, 4, 17, 4);
+			line(17, 4, 17, 14);
+			rectangle(3, 7, 14, 17);
+		}
+		else
+			rectangle(4, 4, 16, 16);
+		break;
+	case TID_APPCLOSE:
+		line(5, 5, 16, 16);
+		line(15, 5, 4, 16);
+		break;
+	default:
+		drawn = false;
+		break;
+	}
+
+	if (drawn)
+	{
+		const int oldMode = SetStretchBltMode(dc, HALFTONE);
+		POINT oldOrigin = {};
+		SetBrushOrgEx(dc, 0, 0, &oldOrigin);
+		drawn = StretchBlt(dc, left, top, size, size, canvas, 0, 0, pixels, pixels, SRCCOPY) != FALSE;
+		SetBrushOrgEx(dc, oldOrigin.x, oldOrigin.y, nullptr);
+		SetStretchBltMode(dc, oldMode);
+	}
+	SelectObject(canvas, oldBrush);
+	SelectObject(canvas, oldPen);
+	DeleteObject(pen);
+	SelectObject(canvas, oldBitmap);
+	DeleteObject(image);
+	DeleteDC(canvas);
+	return drawn;
+}
+
+static void PaintConsoleToolbar(HWND toolbar, HDC dc)
+{
+	const auto colors = GetTabPalette();
+	const int saved = SaveDC(dc);
+	const auto brush = static_cast<HBRUSH>(GetStockObject(DC_BRUSH));
+	RECT client = {};
+	GetClientRect(toolbar, &client);
+	SetDCBrushColor(dc, colors.strip);
+	FillRect(dc, &client, brush);
+
+	const auto icons = reinterpret_cast<HIMAGELIST>(SendMessage(toolbar, TB_GETIMAGELIST, 0, 0));
+	int iconWidth = 0, iconHeight = 0;
+	if (icons)
+		ImageList_GetIconSize(icons, &iconWidth, &iconHeight);
+	const bool dark = CDwmHelper::IsWindowsDarkMode();
+	const auto hot = SendMessage(toolbar, TB_GETHOTITEM, 0, 0);
+	const auto count = SendMessage(toolbar, TB_BUTTONCOUNT, 0, 0);
+	for (int i = 0; i < count; ++i)
+	{
+		TBBUTTON button = {};
+		RECT item = {};
+		if (!SendMessage(toolbar, TB_GETBUTTON, i, reinterpret_cast<LPARAM>(&button))
+			|| (button.fsState & TBSTATE_HIDDEN) || (button.fsStyle & BTNS_SEP)
+			|| !SendMessage(toolbar, TB_GETITEMRECT, i, reinterpret_cast<LPARAM>(&item)))
+			continue;
+
+		const bool enabled = (button.fsState & TBSTATE_ENABLED) != 0;
+		const bool pressed = (button.fsState & TBSTATE_PRESSED) != 0;
+		const bool checked = (button.fsState & TBSTATE_CHECKED) != 0;
+		const bool hovered = enabled && i == hot;
+		const bool highlighted = pressed || checked || hovered;
+		const auto background = !highlighted ? colors.strip : dark && pressed ? RGB(80, 80, 80)
+			: dark && hovered ? DarkMode::Hover : colors.active;
+		const auto foreground = dark && !enabled ? DarkMode::Hint
+			: highlighted ? colors.activeText : colors.stripText;
+		if (highlighted)
+			FillRect(dc, &item, DarkMode::Brush(dc, background));
+
+		const bool dropdown = (button.fsStyle & (BTNS_DROPDOWN | BTNS_WHOLEDROPDOWN)) != 0;
+		const int arrowWidth = dropdown ? std::max(8, iconWidth / 2) : 0;
+		const int centerY = (item.top + item.bottom) / 2;
+		const int x = (item.left + item.right - arrowWidth - iconWidth) / 2;
+		if (icons && button.iBitmap >= 0
+			&& (!dark || iconWidth < 12 || !PaintToolbarGlyph(dc, x, centerY - iconWidth / 2, iconWidth,
+				button.idCommand, button.iBitmap, background, foreground)))
+		{
+			ImageList_Draw(icons, button.iBitmap, dc, x, centerY - iconHeight / 2,
+				enabled ? ILD_TRANSPARENT : ILD_BLEND50);
+		}
+
+		if (dropdown)
+		{
+			const int x = item.right - arrowWidth / 2;
+			const POINT arrow[] = {{x - 3, centerY - 1}, {x + 3, centerY - 1}, {x, centerY + 3}};
+			SelectObject(dc, GetStockObject(NULL_PEN));
+			SelectObject(dc, brush);
+			SetDCBrushColor(dc, foreground);
+			Polygon(dc, arrow, countof(arrow));
+		}
+	}
+	RestoreDC(dc, saved);
+}
 
 // methods
 CTabPanelWin::CTabPanelWin(CTabBarClass* ap_Owner)
@@ -106,6 +397,36 @@ LRESULT CTabPanelWin::ReBarProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 
 	switch (uMsg)
 	{
+		case WM_THEMECHANGED:
+			ApplyTheme();
+			break;
+		case WM_NOTIFY:
+			if (global::g_darkModeEnabled && lParam)
+			{
+				auto hdr = reinterpret_cast<LPNMHDR>(lParam);
+				if (hdr->hwndFrom == mh_Toolbar && hdr->code == NM_CUSTOMDRAW
+					&& !SendMessage(mh_Toolbar, TB_GETIMAGELIST, 0, 0))
+				{
+					auto draw = reinterpret_cast<LPNMTBCUSTOMDRAW>(lParam);
+					if (draw->nmcd.dwDrawStage == CDDS_PREPAINT) return CDRF_NOTIFYITEMDRAW;
+					if (draw->nmcd.dwDrawStage == CDDS_ITEMPREPAINT)
+					{
+						PaintDarkToolbarButton(draw);
+						return CDRF_SKIPDEFAULT;
+					}
+				}
+			}
+			break;
+		case WM_ERASEBKGND:
+		{
+			const auto dc = reinterpret_cast<HDC>(wParam);
+			const auto oldColor = SetDCBrushColor(dc, GetTabPalette().strip);
+			RECT rect = {};
+			GetClientRect(hwnd, &rect);
+			FillRect(dc, &rect, static_cast<HBRUSH>(GetStockObject(DC_BRUSH)));
+			SetDCBrushColor(dc, oldColor);
+			return TRUE;
+		}
 		case WM_DESTROY:
 		{
 			_ASSERTE(!mh_Rebar || mh_Rebar == hwnd);
@@ -194,6 +515,24 @@ LRESULT CTabPanelWin::TabProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 {
 	switch (uMsg)
 	{
+		case WM_ERASEBKGND:
+			return TRUE;
+		case WM_PAINT:
+		{
+			PAINTSTRUCT paint = {};
+			if (const auto dc = BeginPaint(hwnd, &paint))
+			{
+				PaintConsoleTabs(hwnd, dc);
+				EndPaint(hwnd, &paint);
+			}
+			return 0;
+		}
+		case WM_PRINTCLIENT:
+			PaintConsoleTabs(hwnd, reinterpret_cast<HDC>(wParam));
+			return 0;
+		case WM_MOUSELEAVE:
+			InvalidateRect(hwnd, nullptr, FALSE);
+			break;
 		case WM_DESTROY:
 		{
 			_ASSERTE(!mh_Tabbar || mh_Tabbar == hwnd);
@@ -238,6 +577,12 @@ LRESULT CTabPanelWin::TabProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 		{
 			LRESULT lDefRc = CallWindowProc(defaultProc, hwnd, uMsg, wParam, lParam);
 			OnMouseTabbar(uMsg, -1, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+			if (global::g_darkModeEnabled)
+			{
+				TRACKMOUSEEVENT track = {sizeof(track), TME_LEAVE, hwnd, 0};
+				TrackMouseEvent(&track);
+				InvalidateRect(hwnd, nullptr, FALSE);
+			}
 			return lDefRc;
 		}
 		case WM_SETCURSOR:
@@ -273,8 +618,33 @@ LRESULT CTabPanelWin::ToolProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPara
 {
 	switch (uMsg)
 	{
+		case WM_ERASEBKGND:
+			if (SendMessage(hwnd, TB_GETIMAGELIST, 0, 0))
+				return TRUE;
+			break;
+		case WM_PAINT:
+		{
+			if (!SendMessage(hwnd, TB_GETIMAGELIST, 0, 0))
+				break;
+			PAINTSTRUCT paint = {};
+			if (const auto dc = BeginPaint(hwnd, &paint))
+			{
+				PaintConsoleToolbar(hwnd, dc);
+				EndPaint(hwnd, &paint);
+			}
+			return 0;
+		}
+		case WM_PRINTCLIENT:
+			if (SendMessage(hwnd, TB_GETIMAGELIST, 0, 0))
+			{
+				PaintConsoleToolbar(hwnd, reinterpret_cast<HDC>(wParam));
+				return 0;
+			}
+			break;
 		case WM_DESTROY:
 		{
+			if (const auto icons = reinterpret_cast<HIMAGELIST>(CallWindowProc(defaultProc, hwnd, TB_SETIMAGELIST, 0, 0)))
+				ImageList_Destroy(icons);
 			_ASSERTE(!mh_Toolbar || mh_Toolbar == hwnd);
 			mh_Toolbar = nullptr;
 			break;
@@ -378,6 +748,57 @@ RECT CTabPanelWin::GetRect()
 	return rcWnd;
 }
 
+void CTabPanelWin::PaintDarkToolbarButton(LPNMTBCUSTOMDRAW draw)
+{
+	HDC dc = draw->nmcd.hdc;
+	const int saved = SaveDC(dc);
+	RECT rc = draw->nmcd.rc;
+	TBBUTTONINFO button = {sizeof(button)};
+	button.dwMask = TBIF_IMAGE | TBIF_STYLE | TBIF_STATE;
+	SendMessage(mh_Toolbar, TB_GETBUTTONINFO, draw->nmcd.dwItemSpec, reinterpret_cast<LPARAM>(&button));
+	const bool pressed = (draw->nmcd.uItemState & CDIS_SELECTED) != 0;
+	const bool checked = (button.fsState & TBSTATE_CHECKED) != 0;
+	const bool hot = (draw->nmcd.uItemState & CDIS_HOT) != 0;
+	FillRect(dc, &rc, DarkMode::Brush(dc, pressed ? RGB(80,80,80) : hot ? DarkMode::Hover
+		: checked ? DarkMode::Control : DarkMode::Background));
+	const int arrowWidth = (button.fsStyle & BTNS_DROPDOWN) ? gpSetCls->EvalSize(12, esf_Horizontal|esf_CanUseDpi) : 0;
+	const int x = rc.left + (RectWidth(rc) - arrowWidth - mn_ToolbarIconSize) / 2;
+	const int y = rc.top + (RectHeight(rc) - mn_ToolbarIconSize) / 2;
+	mp_ToolImg->PaintButtonTransparent(button.iImage, dc, x, y);
+	if (arrowWidth)
+	{
+		const int center = rc.right - arrowWidth / 2;
+		const int mid = (rc.top + rc.bottom) / 2;
+		const int half = std::max(4, arrowWidth / 4);
+		HPEN pen = CreatePen(PS_SOLID, std::max(2, arrowWidth / 8),
+			(button.fsState & TBSTATE_ENABLED) ? DarkMode::Text : DarkMode::Hint);
+		SelectObject(dc, pen);
+		MoveToEx(dc, center-half, mid-half/2, nullptr);
+		LineTo(dc, center, mid+half/2); LineTo(dc, center+half, mid-half/2);
+		SelectObject(dc, GetStockObject(BLACK_PEN)); DeleteObject(pen);
+	}
+	if (checked)
+	{
+		RECT line = rc; line.top = line.bottom-2;
+		FillRect(dc, &line, DarkMode::Brush(dc, RGB(110,170,220)));
+	}
+	RestoreDC(dc, saved);
+}
+
+void CTabPanelWin::ApplyTheme()
+{
+	const bool changed = mb_DarkMode != global::g_darkModeEnabled;
+	mb_DarkMode = global::g_darkModeEnabled;
+	SendMessage(mh_Rebar, RB_SETBKCOLOR, 0, GetTabPalette().strip);
+	if (changed && mh_Toolbar)
+	{
+		ShowToolsPane(false);
+		ShowToolsPane(true);
+	}
+	if (mp_Find) SendMessage(mp_Find->GetHWND(), WM_THEMECHANGED, 0, 0);
+	RedrawWindow(mh_Rebar, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
+}
+
 void CTabPanelWin::CreateRebar()
 {
 	RECT rcWnd = GetRect();
@@ -419,7 +840,8 @@ void CTabPanelWin::CreateRebar()
 		return;
 	}
 
-	COLORREF clrBack = GetSysColor(COLOR_BTNFACE);
+	mb_DarkMode = global::g_darkModeEnabled;
+	COLORREF clrBack = GetTabPalette().strip;
 	SendMessage(mh_Rebar, RB_SETBKCOLOR, 0, clrBack);
 	SendMessage(mh_Rebar, RB_SETWINDOWTHEME, 0, reinterpret_cast<LPARAM>(L" "));
 
@@ -533,6 +955,8 @@ HWND CTabPanelWin::CreateToolbar()
 
 	WNDPROC defaultProc = (WNDPROC)SetWindowLongPtr(mh_Toolbar, GWLP_WNDPROC, (LONG_PTR)_ToolProc);
 	SetObj(mh_Toolbar, this, defaultProc);
+	AllowDarkModeForWindow(mh_Toolbar, global::g_darkModeEnabled);
+	gpConEmu->SetWindowTheme(mh_Toolbar, global::g_darkModeEnabled ? L"DarkMode_Explorer" : nullptr, nullptr);
 
 	DWORD lExStyle = ((DWORD)SendMessage(mh_Toolbar, TB_GETEXTENDEDSTYLE, 0, 0)) | TBSTYLE_EX_DRAWDDARROWS;
 	SendMessage(mh_Toolbar, TB_SETEXTENDEDSTYLE, 0, lExStyle);
@@ -559,17 +983,47 @@ HWND CTabPanelWin::CreateToolbar()
 	DEBUGSTRSIZE(szLog);
 
 	SendMessage(mh_Toolbar, TB_SETBITMAPSIZE, 0, MAKELONG(nBtnSize,nBtnSize));
+	mn_ToolbarIconSize = nBtnSize;
 
 	int iCreated = 0;
-	if (mp_ToolImg->Create(nBtnSize, nBtnSize, BID_TOOLBAR_LAST_IDX+1, GetSysColor(COLOR_BTNFACE)))
+	const COLORREF toolbarBack = global::g_darkModeEnabled ? DarkMode::Background : GetSysColor(COLOR_BTNFACE);
+	if (mp_ToolImg->Create(nBtnSize, nBtnSize, BID_TOOLBAR_LAST_IDX+1, toolbarBack))
 	{
-		iCreated += mp_ToolImg->AddButtonsMapped(g_hInstance, IDB_MAIN_TOOLBAR, 38, 1, 0, GetSysColor(COLOR_BTNFACE));
-		iCreated += mp_ToolImg->AddButtonsMapped(g_hInstance, IDB_SCROLL, 1, 1, 0xC0C0C0, GetSysColor(COLOR_BTNFACE));
+		iCreated += mp_ToolImg->AddButtonsMapped(g_hInstance, IDB_MAIN_TOOLBAR, 38, 1, 0, toolbarBack);
+		iCreated += mp_ToolImg->AddButtonsMapped(g_hInstance, IDB_SCROLL, 1, 1, 0xC0C0C0, toolbarBack);
 		_ASSERTE(iCreated == (BID_TOOLBAR_LAST_IDX+1));
 	}
 
-	TBADDBITMAP bmp = {nullptr, (UINT_PTR)mp_ToolImg->GetBitmap()};
-	int nFirst = SendMessage(mh_Toolbar, TB_ADDBITMAP, iCreated, (LPARAM)&bmp);
+	const auto images = ImageList_Create(nBtnSize, nBtnSize, ILC_COLOR24 | ILC_MASK, iCreated, 0);
+	const auto bitmap = mp_ToolImg->GetBitmap();
+	const int maskWidth = nBtnSize * iCreated;
+	const auto mask = CreateBitmap(maskWidth, nBtnSize, 1, 1, nullptr);
+	const auto source = CreateCompatibleDC(nullptr);
+	const auto target = CreateCompatibleDC(nullptr);
+	int nFirst = -1;
+	if (images && bitmap && mask && source && target)
+	{
+		const auto oldBitmap = SelectObject(source, bitmap);
+		const auto oldMask = SelectObject(target, mask);
+		SetBkColor(source, toolbarBack);
+		const bool copied = BitBlt(target, 0, 0, maskWidth, nBtnSize, source, 0, 0, SRCCOPY) != FALSE;
+		SelectObject(target, oldMask);
+		SelectObject(source, oldBitmap);
+		if (copied)
+			nFirst = ImageList_Add(images, bitmap, mask);
+	}
+	if (source) DeleteDC(source);
+	if (target) DeleteDC(target);
+	if (mask) DeleteObject(mask);
+	if (nFirst >= 0)
+		SendMessage(mh_Toolbar, TB_SETIMAGELIST, 0, reinterpret_cast<LPARAM>(images));
+	else
+	{
+		if (images)
+			ImageList_Destroy(images);
+		TBADDBITMAP bmp = {nullptr, reinterpret_cast<UINT_PTR>(bitmap)};
+		nFirst = SendMessage(mh_Toolbar, TB_ADDBITMAP, iCreated, reinterpret_cast<LPARAM>(&bmp));
+	}
 	_ASSERTE(BID_TOOLBAR_LAST_IDX==38);
 	int nScrollBmp = BID_TOOLBAR_LAST_IDX;
 
@@ -1248,7 +1702,7 @@ void CTabPanelWin::ShowTabsPane(bool bShow)
 			REBARBANDINFO rbBand = {REBARBANDINFO_SIZE}; // не используем size, т.к. приходит "новый" размер из висты и в XP обламываемся
 
 			rbBand.fMask  = RBBIM_SIZE | RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_ID | RBBIM_STYLE;
-			rbBand.fStyle = RBBS_CHILDEDGE | RBBS_FIXEDSIZE | RBBS_VARIABLEHEIGHT;
+			rbBand.fStyle = RBBS_FIXEDSIZE | RBBS_VARIABLEHEIGHT;
 
 			#if 0
 			rbBand.fMask |= RBBIM_COLORS;
@@ -1386,7 +1840,7 @@ void CTabPanelWin::ShowToolsPane(bool bShow)
 			REBARBANDINFO rbBand = {REBARBANDINFO_SIZE}; // не используем size, т.к. приходит "новый" размер из висты и в XP обламываемся
 
 			rbBand.fMask  = RBBIM_SIZE | RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_ID | RBBIM_STYLE;
-			rbBand.fStyle = RBBS_CHILDEDGE | RBBS_FIXEDSIZE | RBBS_VARIABLEHEIGHT;
+			rbBand.fStyle = RBBS_FIXEDSIZE | RBBS_VARIABLEHEIGHT;
 
 			#if 0
 			rbBand.fMask |= RBBIM_COLORS;
@@ -1449,7 +1903,12 @@ void CTabPanelWin::InvalidateBar()
 {
 	if (this && mh_Rebar)
 	{
+		SendMessage(mh_Rebar, RB_SETBKCOLOR, 0, GetTabPalette().strip);
 		InvalidateRect(mh_Rebar, nullptr, TRUE);
+		if (mh_Tabbar)
+			InvalidateRect(mh_Tabbar, nullptr, FALSE);
+		if (mh_Toolbar)
+			InvalidateRect(mh_Toolbar, nullptr, FALSE);
 		if (mp_Find)
 			mp_Find->Invalidate();
 	}

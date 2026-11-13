@@ -95,6 +95,7 @@ SRCS = \
 		DragDrop.cpp       \
 		DragDropData.cpp   \
 		DwmHelper.cpp      \
+		DarkMode.cpp       \
 		DynDialog.cpp      \
 		FindDlg.cpp        \
 		FindPanel.cpp      \

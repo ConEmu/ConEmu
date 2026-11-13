@@ -1,4 +1,4 @@
-﻿
+
 /*
 Copyright (c) 2013-present Maximus5
 All rights reserved.
@@ -41,6 +41,8 @@ private:
 	bool mb_ChangeAllowed;
 	int  mn_LastToolbarWidth;
 	int  mn_TabHeight;
+	bool mb_DarkMode = false;
+	int mn_ToolbarIconSize = 14;
 
 private:
 	CToolImg* mp_ToolImg;
@@ -101,6 +103,8 @@ private:
 private:
 	HWND CreateTabbar();
 	HWND CreateToolbar();
+	void ApplyTheme();
+	void PaintDarkToolbarButton(LPNMTBCUSTOMDRAW draw);
 	void UpdateToolbarPos();
 	LRESULT TabHitTest(bool abForce = false, int* pnOverTabHit = nullptr);
 	RECT GetRect();

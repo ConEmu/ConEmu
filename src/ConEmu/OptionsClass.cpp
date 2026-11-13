@@ -1,4 +1,4 @@
-﻿
+
 /*
 Copyright (c) 2009-present Maximus5
 All rights reserved.
@@ -33,6 +33,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define SHOWDEBUGSTR
 
 #include "Header.h"
+#include "DarkMode.h"
 #include "version.h"
 
 #include <commctrl.h>
@@ -2044,6 +2045,38 @@ INT_PTR CSettings::ProcessTipHelp(HWND hWnd2, UINT messg, WPARAM wParam, LPARAM 
 	return 0;
 }
 
+static COLORREF SettingsBackground(bool field)
+{
+	return field ? DarkMode::Control : DarkMode::Background;
+}
+
+void CSettings::ApplySettingsTheme(HWND dialog)
+{
+	gpConEmu->ApplyPopupMenuTheme(dialog);
+	DarkMode::ApplyDialog(dialog);
+}
+
+INT_PTR CSettings::SettingsThemeBrush(UINT message, HDC dc, HWND control, bool hyperlink)
+{
+	if (!CDwmHelper::IsWindowsDarkMode())
+		return 0;
+
+	bool field = (message == WM_CTLCOLOREDIT || message == WM_CTLCOLORLISTBOX);
+	if (message == WM_CTLCOLORSTATIC && control)
+	{
+		wchar_t cls[16] = {};
+		GetClassNameW(control, cls, countof(cls));
+		field = _wcsicmp(cls, L"Edit") == 0;
+	}
+	const auto bg = SettingsBackground(field);
+	SetTextColor(dc, hyperlink ? RGB(134, 193, 255)
+		: control && !IsWindowEnabled(control) ? RGB(157, 157, 157) : RGB(240, 240, 240));
+	SetBkColor(dc, bg);
+	SetBkMode(dc, field ? OPAQUE : TRANSPARENT);
+	SetDCBrushColor(dc, bg);
+	return reinterpret_cast<INT_PTR>(GetStockObject(DC_BRUSH));
+}
+
 // DlgProc для окна настроек (IDD_SETTINGS)
 INT_PTR CSettings::wndOpProc(HWND hWnd2, UINT messg, WPARAM wParam, LPARAM lParam)
 {
@@ -2058,6 +2091,7 @@ INT_PTR CSettings::wndOpProc(HWND hWnd2, UINT messg, WPARAM wParam, LPARAM lPara
 	}
 
 	PatchMsgBoxIcon(hWnd2, messg, wParam, lParam);
+	if (DarkMode::ProcessDialogMessage(hWnd2, messg, wParam, lParam, lRc)) return lRc;
 
 	switch (messg)
 	{
@@ -2075,6 +2109,11 @@ INT_PTR CSettings::wndOpProc(HWND hWnd2, UINT messg, WPARAM wParam, LPARAM lPara
 
 			SetClassLongPtr(hWnd2, GCLP_HICON, reinterpret_cast<LONG_PTR>(hClassIcon));
 			gpSetCls->OnInitDialog();
+			ApplySettingsTheme(hWnd2);
+			break;
+
+		case WM_SETTINGCHANGE:
+			ApplySettingsTheme(hWnd2);
 			break;
 
 		case WM_SYSCOMMAND:
@@ -2092,7 +2131,19 @@ INT_PTR CSettings::wndOpProc(HWND hWnd2, UINT messg, WPARAM wParam, LPARAM lPara
 			break;
 
 		case WM_CTLCOLORSTATIC:
-			return gpSetCls->OnCtlColorStatic(hWnd2, reinterpret_cast<HDC>(wParam), reinterpret_cast<HWND>(lParam), LOWORD(GetDlgCtrlID(reinterpret_cast<HWND>(lParam))));
+		{
+			const auto dc = reinterpret_cast<HDC>(wParam);
+			const auto control = reinterpret_cast<HWND>(lParam);
+			const auto id = LOWORD(GetDlgCtrlID(control));
+			if (const auto brush = gpSetCls->OnCtlColorStatic(hWnd2, dc, control, id))
+				return brush;
+			return SettingsThemeBrush(messg, dc, control);
+		}
+		case WM_CTLCOLORDLG:
+		case WM_CTLCOLOREDIT:
+		case WM_CTLCOLORLISTBOX:
+		case WM_CTLCOLORBTN:
+			return SettingsThemeBrush(messg, reinterpret_cast<HDC>(wParam), reinterpret_cast<HWND>(lParam));
 
 		case WM_SETCURSOR:
 			if (CDlgItemHelper::isHyperlinkCtrl(LOWORD(GetDlgCtrlID(reinterpret_cast<HWND>(wParam)))))
@@ -2317,13 +2368,15 @@ INT_PTR CSettings::OnCtlColorStatic(HWND hDlg, HDC hdc, HWND hCtrl, WORD nCtrlId
 		if (!(nStyle & SS_NOTIFY))
 			SetWindowLong(hCtrl, GWL_STYLE, nStyle|SS_NOTIFY);
 		// And the colors
+		if (const auto brush = SettingsThemeBrush(WM_CTLCOLORSTATIC, hdc, hCtrl, true))
+			return brush;
 		SetTextColor(hdc, GetSysColor(COLOR_HOTLIGHT));
 		SetBkMode(hdc, TRANSPARENT);
 		HBRUSH hBrush = GetSysColorBrush(COLOR_3DFACE);
 		return reinterpret_cast<INT_PTR>(hBrush);
 	}
 
-	return FALSE;
+	return reinterpret_cast<INT_PTR>(DarkMode::ControlColor(hCtrl, hdc, WM_CTLCOLORSTATIC));
 }
 
 INT_PTR CSettings::OnMeasureFontItem(HWND hWnd2, UINT messg, WPARAM wParam, LPARAM lParam)
@@ -2364,8 +2417,9 @@ INT_PTR CSettings::OnDrawFontItem(HWND hWnd2, UINT messg, WPARAM wParam, LPARAM 
 
 		if (!(pItem->itemState & ODS_SELECTED))
 		{
-			crText = GetSysColor(COLOR_WINDOWTEXT);
-			crBack = GetSysColor(COLOR_WINDOW);
+			const bool dark = CDwmHelper::IsWindowsDarkMode();
+			crText = dark ? RGB(240, 240, 240) : GetSysColor(COLOR_WINDOWTEXT);
+			crBack = dark ? SettingsBackground(true) : GetSysColor(COLOR_WINDOW);
 		}
 		else
 		{

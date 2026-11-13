@@ -450,6 +450,7 @@ bool CFrameHolder::OnNcUahDrawCaption(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 	if (gpSet->isLogging(2)) LogString(L"WM_NCUAHDRAWCAPTION - begin");
 	MSetter inNcPaint(&mn_InNcPaint);
 	lResult = DoDwmMessage(hWnd, uMsg, wParam, lParam);
+	gpConEmu->RefreshTitleBarThemeColor(hWnd);
 	if (gpSet->isLogging(2)) LogString(L"WM_NCUAHDRAWCAPTION - end");
 	return true;
 }

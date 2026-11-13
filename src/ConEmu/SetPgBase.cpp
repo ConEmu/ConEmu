@@ -1,4 +1,4 @@
-﻿
+
 /*
 Copyright (c) 2016-present Maximus5
 All rights reserved.
@@ -31,6 +31,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define SHOWDEBUGSTR
 
 #include "Header.h"
+#include "DarkMode.h"
 #include "../common/MSetter.h"
 
 #include "ConEmu.h"
@@ -147,6 +148,8 @@ INT_PTR CSetPgBase::OnCtlColorStatic(HWND hDlg, HDC hdc, HWND hCtrl, WORD nCtrlI
 		if (!(nStyle & SS_NOTIFY))
 			SetWindowLong(hCtrl, GWL_STYLE, nStyle|SS_NOTIFY);
 		// And the colors
+		if (const auto brush = CSettings::SettingsThemeBrush(WM_CTLCOLORSTATIC, hdc, hCtrl, true))
+			return brush;
 		SetTextColor(hdc, GetSysColor(COLOR_HOTLIGHT));
 		SetBkMode(hdc, TRANSPARENT);
 		HBRUSH hBrush = GetSysColorBrush(COLOR_3DFACE);
@@ -160,7 +163,7 @@ INT_PTR CSetPgBase::OnCtlColorStatic(HWND hDlg, HDC hdc, HWND hCtrl, WORD nCtrlI
 	return (INT_PTR)hBrush;
 	*/
 
-	return FALSE;
+	return reinterpret_cast<INT_PTR>(DarkMode::ControlColor(hCtrl, hdc, WM_CTLCOLORSTATIC));
 }
 
 INT_PTR CSetPgBase::OnSetCursor(HWND hDlg, HWND hCtrl, WORD nCtrlId, WORD nHitTest, WORD nMouseMsg)
@@ -189,6 +192,8 @@ INT_PTR CSetPgBase::OnButtonClicked(HWND hDlg, HWND hBtn, WORD nCtrlId)
 // Общая DlgProc на _все_ вкладки
 INT_PTR CSetPgBase::pageOpProc(HWND hDlg, UINT messg, WPARAM wParam, LPARAM lParam)
 {
+	INT_PTR darkResult = 0;
+	if (DarkMode::ProcessDialogMessage(hDlg, messg, wParam, lParam, darkResult)) return darkResult;
 	TabHwndIndex pgId = thi_Last;
 	CSetPgBase* pObj = nullptr;
 
@@ -279,6 +284,7 @@ INT_PTR CSetPgBase::pageOpProc(HWND hDlg, UINT messg, WPARAM wParam, LPARAM lPar
 		}
 
 		pObj->OnPostLocalize(hDlg);
+		CSettings::ApplySettingsTheme(hDlg);
 
 	}
 	else if ((messg == WM_HELP) || (messg == HELP_WM_HELP))
@@ -294,6 +300,18 @@ INT_PTR CSetPgBase::pageOpProc(HWND hDlg, UINT messg, WPARAM wParam, LPARAM lPar
 			}
 		}
 		return TRUE;
+	}
+	else if (messg == WM_CTLCOLORSTATIC || messg == WM_CTLCOLORDLG || messg == WM_CTLCOLOREDIT
+		|| messg == WM_CTLCOLORLISTBOX || messg == WM_CTLCOLORBTN || messg == WM_CTLCOLORSCROLLBAR)
+	{
+		const auto dc = reinterpret_cast<HDC>(wParam);
+		const auto control = reinterpret_cast<HWND>(lParam);
+		if (messg == WM_CTLCOLORSTATIC)
+		{
+			if (const auto brush = pObj->OnCtlColorStatic(hDlg, dc, control, GetDlgCtrlID(control)))
+				return brush;
+		}
+		return CSettings::SettingsThemeBrush(messg, dc, control);
 	}
 	else if (pgId == thi_Apps)
 	{
@@ -375,9 +393,6 @@ INT_PTR CSetPgBase::pageOpProc(HWND hDlg, UINT messg, WPARAM wParam, LPARAM lPar
 			return gpSetCls->OnMeasureFontItem(hDlg, messg, wParam, lParam);
 		case WM_DRAWITEM:
 			return gpSetCls->OnDrawFontItem(hDlg, messg, wParam, lParam);
-
-		case WM_CTLCOLORSTATIC:
-			return pObj->OnCtlColorStatic(hDlg, (HDC)wParam, (HWND)lParam, GetDlgCtrlID((HWND)lParam));
 
 		case WM_SETCURSOR:
 			return pObj->OnSetCursor(hDlg, (HWND)wParam, GetDlgCtrlID((HWND)wParam), LOWORD(lParam), HIWORD(lParam));

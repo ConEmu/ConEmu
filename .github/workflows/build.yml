@@ -1,0 +1,39 @@
+name: "Build"
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build:
+    name: Build (${{ matrix.platform }})
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        platform: [x64, Win32]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: true
+          fetch-depth: 2
+      - name: Add msbuild to PATH
+        uses: microsoft/setup-msbuild@v2
+      - name: msbuild
+        run: |
+          msbuild src\CE.sln -m /p:platform="${{ matrix.platform }}" /p:configuration="Release" /p:PlatformToolset=v143 /p:WindowsTargetPlatformVersion=10.0
+      - name: test
+        run: .\Release\Tests_Release_${{ matrix.platform }}.exe
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: ConEmu-${{ matrix.platform }}-Release
+          path: |
+            Release/*.exe
+            Release/*.dll
+            Release/ConEmu/
+          retention-days: 90

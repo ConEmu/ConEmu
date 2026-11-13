@@ -1,4 +1,4 @@
-﻿
+
 /*
 Copyright (c) 2014-present Maximus5
 All rights reserved.
@@ -30,7 +30,8 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define SHOWDEBUGSTR
 
 #include "Header.h"
-#include "OptionsClass.h"
+#include "DarkMode.h"
+#include "DwmHelper.h"
 #include "resource.h"
 #include "ToolImg.h"
 #include "../common/MMap.h"
@@ -210,7 +211,11 @@ static LRESULT EditIconHintPaint(HWND hEditCtrl, CEIconHintInfo* p, UINT Msg = W
 			int iw = ih;
 
 			// Paint background
-			HBRUSH hBr = GetSysColorBrush(COLOR_WINDOW);
+			// Match the real edit control, including the parent's dark colors.
+			HBRUSH hBr = reinterpret_cast<HBRUSH>(SendMessage(GetParent(hEditCtrl),
+				WM_CTLCOLOREDIT, reinterpret_cast<WPARAM>(hdc), reinterpret_cast<LPARAM>(hEditCtrl)));
+			if (!hBr) hBr = GetSysColorBrush(COLOR_WINDOW);
+			const bool darkEdit = global::g_darkModeEnabled && GetBkColor(hdc) == DarkMode::Control;
 			RECT rcFill = rect;
 			// Draw only icon?
 			if (!bDrawHint)
@@ -219,6 +224,7 @@ static LRESULT EditIconHintPaint(HWND hEditCtrl, CEIconHintInfo* p, UINT Msg = W
 				rcFill.left = rcFill.right - (iw + CE_ICON_SPACING);
 			}
 			FillRect(hdc, &rcFill, hBr);
+			SetBkMode(hdc, TRANSPARENT);
 
 			// Cut initial margins
 			rect.left  += LOWORD(p->nMargins);
@@ -231,7 +237,19 @@ static LRESULT EditIconHintPaint(HWND hEditCtrl, CEIconHintInfo* p, UINT Msg = W
 				int X1 = rcClient.right - iw - 1;
 				int Y1 = std::max<int>(0,((rcClient.bottom-rcClient.top-ih)/2));
 
-				dh.pIcon->PaintButton(-1, hdc, X1, Y1, iw, ih);
+				if (darkEdit)
+				{
+					HPEN pen = CreatePen(PS_SOLID, std::max(1, ih / 12), DarkMode::Hint);
+					HGDIOBJ oldPen = SelectObject(hdc, pen);
+					HGDIOBJ oldBrush = SelectObject(hdc, GetStockObject(NULL_BRUSH));
+					const int diameter = ih * 2 / 3;
+					Ellipse(hdc, X1 + iw - diameter - 1, Y1 + 1, X1 + iw - 1, Y1 + diameter + 1);
+					MoveToEx(hdc, X1 + iw - diameter + 1, Y1 + diameter - 1, nullptr);
+					LineTo(hdc, X1 + 1, Y1 + ih - 1);
+					SelectObject(hdc, oldBrush); SelectObject(hdc, oldPen); DeleteObject(pen);
+				}
+				else
+					dh.pIcon->PaintButton(-1, hdc, X1, Y1, iw, ih);
 
 				rect.right = X1 - CE_ICON_SPACING;
 			}
@@ -242,8 +260,10 @@ static LRESULT EditIconHintPaint(HWND hEditCtrl, CEIconHintInfo* p, UINT Msg = W
 				rect.bottom--;
 				HFONT hOldFont = (HFONT)SelectObject(hdc, dh.hFont);
 				COLORREF OldColor = GetTextColor(hdc);
-				SetTextColor(hdc, p->clrHint);
+				SetTextColor(hdc, darkEdit ? DarkMode::Hint : p->clrHint);
+				const int oldBkMode = SetBkMode(hdc, TRANSPARENT);
 				DrawText(hdc, p->sHint, -1, &rect, DT_LEFT|DT_SINGLELINE|DT_EDITCONTROL|DT_VCENTER);
+				SetBkMode(hdc, oldBkMode);
 				SetTextColor(hdc, OldColor);
 				SelectObject(hdc, hOldFont);
 			}
