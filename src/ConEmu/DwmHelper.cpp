@@ -1,4 +1,4 @@
-﻿
+
 /*
 Copyright (c) 2009-present Maximus5
 All rights reserved.
@@ -68,10 +68,7 @@ bool AllowDarkModeForWindow(HWND hWnd, bool allow)
 
 bool IsHighContrast()
 {
-	HIGHCONTRASTW highContrast = { sizeof(highContrast) };
-	if (SystemParametersInfoW(SPI_GETHIGHCONTRAST, sizeof(highContrast), &highContrast, FALSE))
-		return highContrast.dwFlags & HCF_HIGHCONTRASTON;
-	return false;
+	return CDwmHelper::IsHighContrast();
 }
 
 void CDwmHelper::RefreshTitleBarThemeColor(HWND hWnd)
@@ -390,6 +387,65 @@ bool CDwmHelper::IsGlass()
 	if (!mb_DwmAllowed || !mb_EnableGlass)
 		return false;
 	return IsDwm();
+}
+
+bool CDwmHelper::IsHighContrast()
+{
+	HIGHCONTRASTW contrast = {sizeof(contrast)};
+	return SystemParametersInfoW(SPI_GETHIGHCONTRAST, sizeof(contrast), &contrast, 0)
+		&& (contrast.dwFlags & HCF_HIGHCONTRASTON);
+}
+
+bool CDwmHelper::IsWindowsDarkMode()
+{
+	if (global::g_darkModeSupported)
+		return _ShouldAppsUseDarkMode() && !IsHighContrast();
+
+	DWORD light = 1, size = sizeof(light);
+	return !IsHighContrast()
+		&& RegGetValueW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+			L"AppsUseLightTheme", RRF_RT_REG_DWORD, nullptr, &light, &size) == ERROR_SUCCESS
+		&& light == 0;
+}
+
+void CDwmHelper::EnableDarkCaption(HWND window)
+{
+	RefreshTitleBarThemeColor(window);
+}
+
+void CDwmHelper::ApplyPopupMenuTheme(HWND owner)
+{
+	if (!global::g_darkModeSupported)
+		return;
+
+	const bool dark = _ShouldAppsUseDarkMode() && !IsHighContrast();
+	if (owner)
+		AllowDarkModeForWindow(owner, dark);
+
+	static int lastMode = -1;
+	if (lastMode != static_cast<int>(dark))
+	{
+		lastMode = static_cast<int>(dark);
+		_FlushMenuThemes();
+	}
+}
+
+COLORREF CDwmHelper::WindowsAccentColor()
+{
+	DWORD color = 0, size = sizeof(color);
+	if (RegGetValueW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\DWM",
+			L"AccentColor", RRF_RT_REG_DWORD, nullptr, &color, &size) == ERROR_SUCCESS)
+		return color & 0x00FFFFFF;
+	return GetSysColor(COLOR_HIGHLIGHT);
+}
+
+COLORREF CDwmHelper::BlendColors(COLORREF base, COLORREF tint, unsigned tintPercent)
+{
+	const auto blend = [tintPercent](unsigned a, unsigned b) {
+		return (a * (100 - tintPercent) + b * tintPercent) / 100;
+	};
+	return RGB(blend(GetRValue(base), GetRValue(tint)), blend(GetGValue(base), GetGValue(tint)),
+		blend(GetBValue(base), GetBValue(tint)));
 }
 
 bool CDwmHelper::IsThemed()

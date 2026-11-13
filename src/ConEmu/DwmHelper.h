@@ -169,6 +169,12 @@ public:
 	bool IsDwmAllowed();
 	bool IsGlass();
 	bool IsThemed();
+	static bool IsHighContrast();
+	static bool IsWindowsDarkMode();
+	static COLORREF WindowsAccentColor();
+	static COLORREF BlendColors(COLORREF base, COLORREF tint, unsigned tintPercent);
+	void ApplyPopupMenuTheme(HWND owner);
+	void EnableDarkCaption(HWND window);
 	void EnableGlass(bool abGlass);
 	void EnableTheming(bool abTheme);
 	void SetWindowTheme(HWND hWnd, LPCWSTR pszSubAppName, LPCWSTR pszSubIdList);

@@ -1,4 +1,4 @@
-﻿
+
 /*
 Copyright (c) 2013-present Maximus5
 All rights reserved.
@@ -104,7 +104,6 @@ private:
 	HWND CreateTabbar();
 	HWND CreateToolbar();
 	void ApplyTheme();
-	void PaintDarkTabs(HDC dc);
 	void PaintDarkToolbarButton(LPNMTBCUSTOMDRAW draw);
 	void UpdateToolbarPos();
 	LRESULT TabHitTest(bool abForce = false, int* pnOverTabHit = nullptr);

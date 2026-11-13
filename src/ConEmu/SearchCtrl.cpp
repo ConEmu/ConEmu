@@ -1,4 +1,4 @@
-﻿
+
 /*
 Copyright (c) 2014-present Maximus5
 All rights reserved.
@@ -31,7 +31,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "Header.h"
 #include "DarkMode.h"
-#include "OptionsClass.h"
+#include "DwmHelper.h"
 #include "resource.h"
 #include "ToolImg.h"
 #include "../common/MMap.h"
@@ -215,7 +215,7 @@ static LRESULT EditIconHintPaint(HWND hEditCtrl, CEIconHintInfo* p, UINT Msg = W
 			HBRUSH hBr = reinterpret_cast<HBRUSH>(SendMessage(GetParent(hEditCtrl),
 				WM_CTLCOLOREDIT, reinterpret_cast<WPARAM>(hdc), reinterpret_cast<LPARAM>(hEditCtrl)));
 			if (!hBr) hBr = GetSysColorBrush(COLOR_WINDOW);
-			const bool darkEdit = GetBkColor(hdc) == DarkMode::Control;
+			const bool darkEdit = global::g_darkModeEnabled && GetBkColor(hdc) == DarkMode::Control;
 			RECT rcFill = rect;
 			// Draw only icon?
 			if (!bDrawHint)
@@ -224,6 +224,7 @@ static LRESULT EditIconHintPaint(HWND hEditCtrl, CEIconHintInfo* p, UINT Msg = W
 				rcFill.left = rcFill.right - (iw + CE_ICON_SPACING);
 			}
 			FillRect(hdc, &rcFill, hBr);
+			SetBkMode(hdc, TRANSPARENT);
 
 			// Cut initial margins
 			rect.left  += LOWORD(p->nMargins);

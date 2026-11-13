@@ -1,4 +1,4 @@
-﻿
+
 /*
 Copyright (c) 2012-present Maximus5
 All rights reserved.
@@ -86,6 +86,20 @@ static MModule gComCtl32;
 typedef HRESULT (WINAPI* TaskDialogIndirect_t)(const TASKDIALOGCONFIG *pTaskConfig, int *pnButton, int *pnRadioButton, BOOL *pfVerificationFlagChecked);
 static TaskDialogIndirect_t TaskDialogIndirect_f = nullptr; //(TaskDialogIndirect_t)(hDll?GetProcAddress(hDll, "TaskDialogIndirect"):nullptr);
 
+struct TaskDialogCaptionContext
+{
+	PFTASKDIALOGCALLBACK callback;
+	LONG_PTR data;
+};
+
+static HRESULT CALLBACK TaskDialogCaptionCallback(HWND hwnd, UINT notification, WPARAM wParam, LPARAM lParam, LONG_PTR data)
+{
+	const auto& context = *reinterpret_cast<const TaskDialogCaptionContext*>(data);
+	if (notification == TDN_CREATED)
+		gpConEmu->EnableDarkCaption(hwnd);
+	return context.callback(hwnd, notification, wParam, lParam, context.data);
+}
+
 HRESULT TaskDialog(TASKDIALOGCONFIG *pTaskConfig, int *pnButton, int *pnRadioButton, bool *pfVerificationFlagChecked)
 {
 	HRESULT hr = E_UNEXPECTED;
@@ -107,7 +121,14 @@ HRESULT TaskDialog(TASKDIALOGCONFIG *pTaskConfig, int *pnButton, int *pnRadioBut
 		else if (hClassIconSm)
 			ghDlgPendingFrom = GetForegroundWindow();
 
-		hr = TaskDialogIndirect_f(pTaskConfig, pnButton, pnRadioButton, &bCheckBox);
+		TASKDIALOGCONFIG config = *pTaskConfig;
+		const TaskDialogCaptionContext context{config.pfCallback, config.lpCallbackData};
+		if (gpConEmu && CDwmHelper::IsWindowsDarkMode())
+		{
+			config.pfCallback = TaskDialogCaptionCallback;
+			config.lpCallbackData = reinterpret_cast<LONG_PTR>(&context);
+		}
+		hr = TaskDialogIndirect_f(&config, pnButton, pnRadioButton, &bCheckBox);
 
 		ghDlgPendingFrom = nullptr;
 	}
@@ -116,6 +137,241 @@ HRESULT TaskDialog(TASKDIALOGCONFIG *pTaskConfig, int *pnButton, int *pnRadioBut
 		*pfVerificationFlagChecked = (bCheckBox != FALSE);
 
 	return hr;
+}
+
+namespace
+{
+constexpr int CloseDialogLink = 100;
+constexpr int CloseDialogIcon = 101;
+constexpr int CloseDialogHeading = 102;
+
+struct CloseDialog
+{
+	const TASKDIALOGCONFIG& config;
+	HFONT font = nullptr;
+	HFONT headingFont = nullptr;
+};
+
+INT_PTR CALLBACK DarkCloseDialogProc(HWND dialog, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	switch (msg)
+	{
+	case WM_INITDIALOG:
+	{
+		auto& state = *reinterpret_cast<CloseDialog*>(lParam);
+		SetWindowLongPtr(dialog, DWLP_USER, lParam);
+		const auto& config = state.config;
+		TaskDlgCallback(dialog, TDN_CREATED, 0, 0, 0);
+		gpConEmu->ApplyPopupMenuTheme(dialog);
+		gpConEmu->EnableDarkCaption(dialog);
+		SetWindowText(dialog, config.pszWindowTitle);
+
+		HDC dc = GetDC(dialog);
+		const int dpi = GetDeviceCaps(dc, LOGPIXELSX);
+		const int margin = MulDiv(10, dpi, 96);
+		const int width = MulDiv(410, dpi, 96);
+		const int inset = MulDiv(53, dpi, 96);
+		NONCLIENTMETRICSW metrics = {sizeof(metrics)};
+		if (SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, sizeof(metrics), &metrics, 0))
+		{
+			state.font = CreateFontIndirectW(&metrics.lfMessageFont);
+			metrics.lfMessageFont.lfHeight = -MulDiv(16, dpi, 96);
+			state.headingFont = CreateFontIndirectW(&metrics.lfMessageFont);
+		}
+		HFONT font = state.font ? state.font : static_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT));
+		HFONT headingFont = state.headingFont ? state.headingFont : font;
+		const auto oldFont = SelectObject(dc, font);
+		auto add = [&](LPCWSTR cls, LPCWSTR title, DWORD style, int id, int left, int top, int wide, int height)
+		{
+			HWND child = CreateWindowExW(0, cls, title, WS_CHILD | WS_VISIBLE | style,
+				left, top, wide, height, dialog,
+				reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)), g_hInstance, nullptr);
+			if (child)
+				SendMessage(child, WM_SETFONT, reinterpret_cast<WPARAM>(font), FALSE);
+			return child;
+		};
+		auto textHeight = [&](LPCWSTR text, int available)
+		{
+			RECT bounds = {0, 0, available, 0};
+			DrawTextW(dc, text, -1, &bounds, DT_CALCRECT | DT_WORDBREAK | DT_NOPREFIX);
+			return bounds.bottom;
+		};
+
+		const int textWidth = width - inset - margin;
+		const int iconSize = MulDiv(32, dpi, 96);
+		add(L"Static", L"", SS_OWNERDRAW, CloseDialogIcon, margin, margin, iconSize, iconSize);
+		SelectObject(dc, headingFont);
+		const int heading = textHeight(config.pszMainInstruction, textWidth);
+		HWND label = add(L"Static", config.pszMainInstruction, SS_NOPREFIX, CloseDialogHeading, inset, margin, textWidth, heading);
+		if (label)
+			SendMessage(label, WM_SETFONT, reinterpret_cast<WPARAM>(headingFont), FALSE);
+		int top = margin * 3 + std::max(heading, iconSize);
+		bool ready = label != nullptr;
+		for (UINT i = 0; i < config.cButtons; ++i)
+		{
+			const auto& button = config.pButtons[i];
+			const wchar_t* note = wcschr(button.pszButtonText, L'\n');
+			const CEStr title = note ? CEStr(button.pszButtonText, note - button.pszButtonText) : CEStr(button.pszButtonText);
+			const int available = textWidth - MulDiv(38, dpi, 96);
+			SelectObject(dc, headingFont);
+			int height = textHeight(title, available) + 2 * margin;
+			SelectObject(dc, font);
+			if (note)
+				height += textHeight(note + 1, available);
+			ready = add(L"Button", button.pszButtonText, WS_TABSTOP | BS_OWNERDRAW,
+				button.nButtonID, inset, top, textWidth, height) && ready;
+			top += height;
+		}
+		const int linkHeight = textHeight(gsHomePage, width - 4 * margin) + MulDiv(16, dpi, 96);
+		top += margin;
+		ready = add(L"Button", gsHomePage, WS_TABSTOP | BS_OWNERDRAW, CloseDialogLink, 0, top, width, linkHeight) && ready;
+		SelectObject(dc, oldFont);
+		ReleaseDC(dialog, dc);
+		if (!ready)
+		{
+			EndDialog(dialog, -1);
+			return FALSE;
+		}
+
+		RECT frame = {0, 0, width, top + linkHeight};
+		AdjustWindowRectEx(&frame, GetWindowLong(dialog, GWL_STYLE), FALSE, GetWindowLong(dialog, GWL_EXSTYLE));
+		RECT parent = {};
+		GetWindowRect(config.hwndParent, &parent);
+		const int frameWidth = frame.right - frame.left, frameHeight = frame.bottom - frame.top;
+		MONITORINFO monitor = {sizeof(monitor)};
+		int x = parent.left + (parent.right - parent.left - frameWidth) / 2;
+		int y = parent.top + (parent.bottom - parent.top - frameHeight) / 2;
+		if (GetMonitorInfoW(MonitorFromWindow(config.hwndParent, MONITOR_DEFAULTTONEAREST), &monitor))
+		{
+			x = std::max(monitor.rcWork.left, std::min<LONG>(x, monitor.rcWork.right - frameWidth));
+			y = std::max(monitor.rcWork.top, std::min<LONG>(y, monitor.rcWork.bottom - frameHeight));
+		}
+		SetWindowPos(dialog, nullptr, x, y, frameWidth, frameHeight, SWP_NOZORDER | SWP_NOACTIVATE);
+		SendMessage(dialog, DM_SETDEFID, config.nDefaultButton, 0);
+		SetFocus(GetDlgItem(dialog, config.nDefaultButton));
+		return FALSE;
+	}
+	case WM_DRAWITEM:
+	{
+		const auto& item = *reinterpret_cast<const DRAWITEMSTRUCT*>(lParam);
+		const auto& state = *reinterpret_cast<const CloseDialog*>(GetWindowLongPtr(dialog, DWLP_USER));
+		if (item.CtlID == CloseDialogIcon)
+		{
+			DrawIconEx(item.hDC, item.rcItem.left, item.rcItem.top, state.config.hMainIcon,
+				item.rcItem.right - item.rcItem.left, item.rcItem.bottom - item.rcItem.top, 0, nullptr, DI_NORMAL);
+			return TRUE;
+		}
+		const bool focus = (item.itemState & ODS_FOCUS) != 0;
+		const bool pressed = (item.itemState & ODS_SELECTED) != 0;
+		const bool link = item.CtlID == CloseDialogLink;
+		SetDCBrushColor(item.hDC, pressed ? RGB(43, 74, 101)
+			: link ? RGB(41, 41, 41) : RGB(32, 32, 32));
+		FillRect(item.hDC, &item.rcItem, static_cast<HBRUSH>(GetStockObject(DC_BRUSH)));
+		if (focus)
+		{
+			SetDCBrushColor(item.hDC, RGB(93, 131, 160));
+			FrameRect(item.hDC, &item.rcItem, static_cast<HBRUSH>(GetStockObject(DC_BRUSH)));
+		}
+		wchar_t title[MAX_PATH * 2] = {};
+		GetWindowTextW(item.hwndItem, title, countof(title));
+		const auto oldFont = SelectObject(item.hDC, reinterpret_cast<HFONT>(SendMessage(item.hwndItem, WM_GETFONT, 0, 0)));
+		SetTextColor(item.hDC, link ? RGB(134, 193, 255) : RGB(240, 240, 240));
+		SetBkMode(item.hDC, TRANSPARENT);
+		RECT text = item.rcItem;
+		const int dpi = GetDeviceCaps(item.hDC, LOGPIXELSX);
+		const int padding = MulDiv(10, dpi, 96);
+		InflateRect(&text, -padding, -(padding / 2));
+		if (link)
+		{
+			DrawTextW(item.hDC, title, -1, &text, DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+			SIZE size{};
+			if (GetTextExtentPoint32W(item.hDC, title, lstrlenW(title), &size))
+			{
+				RECT underline = {text.left, (text.top + text.bottom + size.cy) / 2 - 1,
+					text.left + size.cx, (text.top + text.bottom + size.cy) / 2};
+				SetDCBrushColor(item.hDC, RGB(134, 193, 255));
+				FillRect(item.hDC, &underline, static_cast<HBRUSH>(GetStockObject(DC_BRUSH)));
+			}
+		}
+		else
+		{
+			if (state.headingFont)
+				SelectObject(item.hDC, state.headingFont);
+			SetTextColor(item.hDC, RGB(134, 193, 255));
+			RECT arrow = text;
+			DrawTextW(item.hDC, L"\u2192", -1, &arrow, DT_SINGLELINE | DT_NOPREFIX);
+			text.left += MulDiv(24, dpi, 96);
+			SetTextColor(item.hDC, RGB(240, 240, 240));
+			const wchar_t* note = wcschr(title, L'\n');
+			const int length = note ? static_cast<int>(note - title) : -1;
+			RECT bounds = text;
+			DrawTextW(item.hDC, title, length, &bounds, DT_CALCRECT | DT_WORDBREAK | DT_NOPREFIX);
+			DrawTextW(item.hDC, title, length, &text, DT_WORDBREAK | DT_NOPREFIX);
+			if (note)
+			{
+				SelectObject(item.hDC, reinterpret_cast<HFONT>(SendMessage(item.hwndItem, WM_GETFONT, 0, 0)));
+				text.top = bounds.bottom;
+				DrawTextW(item.hDC, note + 1, -1, &text, DT_WORDBREAK | DT_NOPREFIX);
+			}
+		}
+		SelectObject(item.hDC, oldFont);
+		return TRUE;
+	}
+	case WM_CTLCOLORDLG:
+	case WM_CTLCOLORSTATIC:
+	{
+		const auto dc = reinterpret_cast<HDC>(wParam);
+		SetBkMode(dc, TRANSPARENT);
+		const HWND control = reinterpret_cast<HWND>(lParam);
+		SetTextColor(dc, msg == WM_CTLCOLORSTATIC && GetDlgCtrlID(control) == CloseDialogHeading
+			? RGB(134, 193, 255) : RGB(240, 240, 240));
+		SetDCBrushColor(dc, RGB(32, 32, 32));
+		return reinterpret_cast<INT_PTR>(GetStockObject(DC_BRUSH));
+	}
+	case WM_COMMAND:
+		switch (LOWORD(wParam))
+		{
+		case CloseDialogLink:
+			ShellExecute(dialog, L"open", gsHomePage, nullptr, nullptr, SW_SHOWNORMAL);
+			return TRUE;
+		case IDYES:
+		case IDNO:
+		case IDCANCEL:
+			EndDialog(dialog, LOWORD(wParam));
+			return TRUE;
+		}
+		break;
+	case WM_CLOSE:
+		EndDialog(dialog, IDCANCEL);
+		return TRUE;
+	}
+	return FALSE;
+}
+
+HRESULT ShowCloseTaskDialog(TASKDIALOGCONFIG& config, int& button)
+{
+	if (CDwmHelper::IsWindowsDarkMode())
+	{
+		const struct
+		{
+			DLGTEMPLATE dialog;
+			WORD menu, windowClass, title;
+		} layout = {{WS_POPUP | WS_CAPTION | WS_SYSMENU | DS_MODALFRAME, 0, 0, 0, 0, 0, 0}, 0, 0, 0};
+		CloseDialog state{config};
+		const auto result = DialogBoxIndirectParamW(g_hInstance, &layout.dialog, config.hwndParent,
+			DarkCloseDialogProc, reinterpret_cast<LPARAM>(&state));
+		if (state.font)
+			DeleteObject(state.font);
+		if (state.headingFont)
+			DeleteObject(state.headingFont);
+		if (result != -1)
+		{
+			button = static_cast<int>(result);
+			return S_OK;
+		}
+	}
+	return TaskDialog(&config, &button, nullptr, nullptr);
+}
 }
 
 // IDYES    - Close All consoles
@@ -274,7 +530,7 @@ int ConfirmCloseConsoles(const ConfirmCloseParam& Parm)
 		//	config.pszVerificationText = L"Text on checkbox";
 		//}
 
-		const HRESULT hr = TaskDialog(&config, &nButtonPressed, nullptr, nullptr);
+		const HRESULT hr = ShowCloseTaskDialog(config, nButtonPressed);
 
 		if (hr == S_OK)
 		{
