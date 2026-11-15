@@ -32,6 +32,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "Header.h"
 #include "../common/shlobj.h"
+#include "../common/MStrEsc.h"
 #include "../common/WFiles.h"
 #include "../common/WThreads.h"
 
@@ -898,7 +899,7 @@ HRESULT CDragDrop::DropFromText(IDataObject* pDataObject)
 		LPCWSTR pszText = (LPCWSTR)GlobalLock(stgMedium.hGlobal);
 		if (pszText)
 		{
-			VCon->RCon()->Paste(pm_Standard, pszText);
+			VCon->RCon()->Paste(pm_OneLine, pszText);
 			GlobalUnlock(stgMedium.hGlobal);
 		}
 		ReleaseStgMedium(&stgMedium);
@@ -931,8 +932,9 @@ HRESULT CDragDrop::DropNames(HDROP hDrop, int iQuantity, BOOL abActive)
 	if (!pRCon)
 		return S_FALSE;
 
-	BOOL bNoFarConsole = m_pfpi->NoFarConsole;
-	BOOL bDontAddSpace = FALSE;
+	bool bNoFarConsole = m_pfpi->NoFarConsole;
+	bool bFarConsole = !bNoFarConsole;
+	bool bDontAddSpace = false;
 	bool bIsFarLua = false;
 	bool bCygwinPaths = false;
 
@@ -999,11 +1001,13 @@ HRESULT CDragDrop::DropNames(HDROP hDrop, int iQuantity, BOOL abActive)
 
 	if (bNoFarConsole && pRCon->isFar(true) /*&& pRCon->isAlive()*/)
 	{
-		bNoFarConsole = FALSE; // таки послать макросом (это может быть редактор или диалог)
-		bDontAddSpace = TRUE;
+		// Use Far Macros, it's might be editor or a dialog
+		bNoFarConsole = false;
+		bFarConsole = true;
+		bDontAddSpace = true;
 	}
 
-	if (!bNoFarConsole)
+	if (bFarConsole)
 	{
 		bIsFarLua = pRCon->IsFarLua();
 	}
@@ -1029,7 +1033,7 @@ HRESULT CDragDrop::DropNames(HDROP hDrop, int iQuantity, BOOL abActive)
 
 	for (int i = 0 ; i < iQuantity; i++)
 	{
-		if (!bNoFarConsole)
+		if (bFarConsole)
 		{
 			_wcscpy_c(szMacro, cchMacro, bIsFarLua ? L"print(\"" : L"$Text \"");
 		}
@@ -1039,6 +1043,11 @@ HRESULT CDragDrop::DropNames(HDROP hDrop, int iQuantity, BOOL abActive)
 
 		if (lQueryRc >= MAX_DROP_PATH) continue;
 
+		// File names may contain CR/LF/TAB, never allow them to reach the console or Far macros
+		const CEStr oneLine = MakeOneLinerString(pszText, MakeOneLinerFlags::None);
+		// The result is never longer than the source, copy it back, the code below expects pszText inside szData
+		_wcscpy_c(pszText, MAX_DROP_PATH, oneLine.c_str(L""));
+
 		wchar_t* psz = pszText;
 		// обработка кавычек и слэшей
 		//while ((psz = wcschr(psz, L'"')) != nullptr) {
@@ -1047,7 +1056,7 @@ HRESULT CDragDrop::DropNames(HDROP hDrop, int iQuantity, BOOL abActive)
 		INT_PTR nLen = _tcslen(psz);
 
 		bool AutoQuote = true;
-		if (!bNoFarConsole)
+		if (bFarConsole)
 		{
 
 			while (nLen>0 && *psz)
@@ -1080,7 +1089,7 @@ HRESULT CDragDrop::DropNames(HDROP hDrop, int iQuantity, BOOL abActive)
 		if (AutoQuote && (psz = wcschr(pszText, L' ')) != nullptr)
 		{
 			// Double quote the name
-			if (!bNoFarConsole)
+			if (bFarConsole)
 			{
 				*(--pszText) = L'\"';
 				*(--pszText) = L'\\';
@@ -1093,7 +1102,7 @@ HRESULT CDragDrop::DropNames(HDROP hDrop, int iQuantity, BOOL abActive)
 			}
 		}
 
-		if (!bNoFarConsole)
+		if (bFarConsole)
 		{
 			if (lbAddGoto || lbAddEdit || lbAddView)
 			{
@@ -1118,7 +1127,7 @@ HRESULT CDragDrop::DropNames(HDROP hDrop, int iQuantity, BOOL abActive)
 		}
 		else
 		{
-			pRCon->Paste(pm_Standard, pszText, true, pxm_Auto);
+			pRCon->Paste(pm_OneLine, pszText, true, pxm_Auto);
 
 			if (!bDontAddSpace)
 				pRCon->Paste(pm_Standard, L" ", true, pxm_Auto);
@@ -1135,7 +1144,7 @@ HRESULT CDragDrop::DropNames(HDROP hDrop, int iQuantity, BOOL abActive)
 		}
 	}
 
-	if (!bNoFarConsole && lbAddEnter)
+	if (bFarConsole && lbAddEnter)
 	{
 		gpConEmu->PostMacro(bIsFarLua ? L"Keys(\"Enter\")" : L"Enter");
 	}
@@ -1282,7 +1291,7 @@ HRESULT STDMETHODCALLTYPE CDragDrop::Drop(IDataObject* pDataObject, DWORD grfKey
 	{
 		if (mb_selfdrag || lbDropFileNamesOnly)
 		{
-			// Позвать "VCon->RCon()->Paste(pm_Standard, pszText)"
+			// Call "VCon->RCon()->Paste(pm_OneLine, pszText)"
 			if ((hr = DropFromText(pDataObject)) == S_OK)
 			{
 				return S_OK;
