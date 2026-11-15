@@ -14,13 +14,13 @@ workspace "CE"
   startproject "ConEmu"
 
   staticruntime "On"
-  flags { "MultiProcessorCompile" }
-  flags { "Maps" }
+  multiprocessorcompile "On"
+  mapfile "On"
   filter "configurations:Release"
-    flags { "NoIncrementalLink" }
+    incrementallink "Off"
 
   filter "platforms:Win32"
-    architecture "x32"
+    architecture "x86"
     defines { "WIN32", "_WIN32" }
 
   filter "platforms:x64"
@@ -350,9 +350,9 @@ project "ConEmuC"
   filter { "configurations:Debug or Remote" }
   postbuildcommands {
     '{ECHO} Copying "%{wks.location}../Release/ConEmu/*.cmd" "%{cfg.targetdir}"',
-    '{COPY} "%{wks.location}/../Release/ConEmu/*.cmd" "%{cfg.targetdir}"',
+    '{COPYFILE} "%{wks.location}/../Release/ConEmu/*.cmd" "%{cfg.targetdir}"',
     '{ECHO} Copying "%{wks.location}../Release/ConEmu/ConEmu.l10n" "%{cfg.targetdir}"',
-    '{COPY} "%{wks.location}/../Release/ConEmu/ConEmu.l10n" "%{cfg.targetdir}"',
+    '{COPYFILE} "%{wks.location}/../Release/ConEmu/ConEmu.l10n" "%{cfg.targetdir}"',
   }
   filter{}
 
@@ -485,7 +485,7 @@ project "ConEmuHk"
   removefiles (tests_remove)
 
   filter { "files:**/HDE/*.*" }
-    flags {"ExcludeFromBuild"}
+    excludefrombuild "On"
   filter {}
 
   filter "action:vs*"
