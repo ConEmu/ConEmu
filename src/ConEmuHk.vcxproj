@@ -32,6 +32,15 @@
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>ConEmuHk</RootNamespace>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Globals">
+    <XPDeprecationWarning>false</XPDeprecationWarning>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Globals">
+    <XPDeprecationWarning>false</XPDeprecationWarning>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Remote|Win32'" Label="Globals">
+    <XPDeprecationWarning>false</XPDeprecationWarning>
+  </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
@@ -93,43 +102,43 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>..\Release\ConEmu\</OutDir>
-    <IntDir>_VCBUILD\Release\ConEmuHk_Win32\</IntDir>
+    <OutDir>$(ProjectDir)..\Release\ConEmu\</OutDir>
+    <IntDir>$(ProjectDir)_VCBUILD\Release\ConEmuHk_Win32\</IntDir>
     <TargetName>ConEmuHk</TargetName>
     <TargetExt>.dll</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>..\Release\ConEmu\</OutDir>
-    <IntDir>_VCBUILD\Release\ConEmuHk_x64\</IntDir>
+    <OutDir>$(ProjectDir)..\Release\ConEmu\</OutDir>
+    <IntDir>$(ProjectDir)_VCBUILD\Release\ConEmuHk_x64\</IntDir>
     <TargetName>ConEmuHk64</TargetName>
     <TargetExt>.dll</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>..\Debug\ConEmu\</OutDir>
-    <IntDir>_VCBUILD\Debug\ConEmuHk_Win32\</IntDir>
+    <OutDir>$(ProjectDir)..\Debug\ConEmu\</OutDir>
+    <IntDir>$(ProjectDir)_VCBUILD\Debug\ConEmuHk_Win32\</IntDir>
     <TargetName>ConEmuHk</TargetName>
     <TargetExt>.dll</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>..\Debug\ConEmu\</OutDir>
-    <IntDir>_VCBUILD\Debug\ConEmuHk_x64\</IntDir>
+    <OutDir>$(ProjectDir)..\Debug\ConEmu\</OutDir>
+    <IntDir>$(ProjectDir)_VCBUILD\Debug\ConEmuHk_x64\</IntDir>
     <TargetName>ConEmuHk64</TargetName>
     <TargetExt>.dll</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Remote|Win32'">
     <LinkIncremental>true</LinkIncremental>
     <OutDir>Z:\ConEmu\</OutDir>
-    <IntDir>_VCBUILD\Remote\ConEmuHk_Win32\</IntDir>
+    <IntDir>$(ProjectDir)_VCBUILD\Remote\ConEmuHk_Win32\</IntDir>
     <TargetName>ConEmuHk</TargetName>
     <TargetExt>.dll</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Remote|x64'">
     <LinkIncremental>true</LinkIncremental>
     <OutDir>Z:\ConEmu\</OutDir>
-    <IntDir>_VCBUILD\Remote\ConEmuHk_x64\</IntDir>
+    <IntDir>$(ProjectDir)_VCBUILD\Remote\ConEmuHk_x64\</IntDir>
     <TargetName>ConEmuHk64</TargetName>
     <TargetExt>.dll</TargetExt>
   </PropertyGroup>
@@ -147,6 +156,7 @@
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <ExceptionHandling>false</ExceptionHandling>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN32;_WIN32;NDEBUG;HIDE_TODO;NOMINMAX;CONEMU_MINIMAL;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -161,6 +171,8 @@
       <ModuleDefinitionFile>ConEmuHk/export.def</ModuleDefinitionFile>
       <AdditionalOptions>/DYNAMICBASE:NO /FIXED:NO /BASE:0x7E110000 %(AdditionalOptions)</AdditionalOptions>
     </Link>
+    <ProjectReference>
+    </ProjectReference>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -176,6 +188,7 @@
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <ExceptionHandling>false</ExceptionHandling>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN64;_WIN64;NDEBUG;HIDE_TODO;NOMINMAX;CONEMU_MINIMAL;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -190,6 +203,8 @@
       <ModuleDefinitionFile>ConEmuHk/export.def</ModuleDefinitionFile>
       <AdditionalOptions>/DYNAMICBASE:NO /FIXED:NO /BASE:0x7E1100000000 %(AdditionalOptions)</AdditionalOptions>
     </Link>
+    <ProjectReference>
+    </ProjectReference>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -202,6 +217,7 @@
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <ExceptionHandling>false</ExceptionHandling>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN32;_WIN32;_DEBUG;HIDE_TODO;MSGLOGGER;NOMINMAX;CONEMU_MINIMAL;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -214,6 +230,8 @@
       <ModuleDefinitionFile>ConEmuHk/export.def</ModuleDefinitionFile>
       <AdditionalOptions>/DYNAMICBASE:NO /FIXED:NO /BASE:0x7E110000 %(AdditionalOptions)</AdditionalOptions>
     </Link>
+    <ProjectReference>
+    </ProjectReference>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -226,6 +244,7 @@
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <ExceptionHandling>false</ExceptionHandling>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN64;_WIN64;_DEBUG;HIDE_TODO;MSGLOGGER;NOMINMAX;CONEMU_MINIMAL;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -238,6 +257,8 @@
       <ModuleDefinitionFile>ConEmuHk/export.def</ModuleDefinitionFile>
       <AdditionalOptions>/DYNAMICBASE:NO /FIXED:NO /BASE:0x7E1100000000 %(AdditionalOptions)</AdditionalOptions>
     </Link>
+    <ProjectReference>
+    </ProjectReference>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Remote|Win32'">
     <ClCompile>
@@ -250,6 +271,7 @@
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <ExceptionHandling>false</ExceptionHandling>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN32;_WIN32;_DEBUG;HIDE_TODO;MSGLOGGER;NOMINMAX;CONEMU_MINIMAL;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -262,6 +284,8 @@
       <ModuleDefinitionFile>ConEmuHk/export.def</ModuleDefinitionFile>
       <AdditionalOptions>/DYNAMICBASE:NO /FIXED:NO /BASE:0x7E110000 %(AdditionalOptions)</AdditionalOptions>
     </Link>
+    <ProjectReference>
+    </ProjectReference>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Remote|x64'">
     <ClCompile>
@@ -274,6 +298,7 @@
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <ExceptionHandling>false</ExceptionHandling>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN64;_WIN64;_DEBUG;HIDE_TODO;MSGLOGGER;NOMINMAX;CONEMU_MINIMAL;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -286,6 +311,8 @@
       <ModuleDefinitionFile>ConEmuHk/export.def</ModuleDefinitionFile>
       <AdditionalOptions>/DYNAMICBASE:NO /FIXED:NO /BASE:0x7E1100000000 %(AdditionalOptions)</AdditionalOptions>
     </Link>
+    <ProjectReference>
+    </ProjectReference>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="ConEmu\ConsoleMessages.h" />

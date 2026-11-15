@@ -32,6 +32,15 @@
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>ConEmuC</RootNamespace>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Globals">
+    <XPDeprecationWarning>false</XPDeprecationWarning>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Globals">
+    <XPDeprecationWarning>false</XPDeprecationWarning>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Remote|Win32'" Label="Globals">
+    <XPDeprecationWarning>false</XPDeprecationWarning>
+  </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -93,43 +102,43 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>..\Release\ConEmu\</OutDir>
-    <IntDir>_VCBUILD\Release\ConEmuC_Win32\</IntDir>
+    <OutDir>$(ProjectDir)..\Release\ConEmu\</OutDir>
+    <IntDir>$(ProjectDir)_VCBUILD\Release\ConEmuC_Win32\</IntDir>
     <TargetName>ConEmuC</TargetName>
     <TargetExt>.exe</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>..\Release\ConEmu\</OutDir>
-    <IntDir>_VCBUILD\Release\ConEmuC_x64\</IntDir>
+    <OutDir>$(ProjectDir)..\Release\ConEmu\</OutDir>
+    <IntDir>$(ProjectDir)_VCBUILD\Release\ConEmuC_x64\</IntDir>
     <TargetName>ConEmuC64</TargetName>
     <TargetExt>.exe</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>..\Debug\ConEmu\</OutDir>
-    <IntDir>_VCBUILD\Debug\ConEmuC_Win32\</IntDir>
+    <OutDir>$(ProjectDir)..\Debug\ConEmu\</OutDir>
+    <IntDir>$(ProjectDir)_VCBUILD\Debug\ConEmuC_Win32\</IntDir>
     <TargetName>ConEmuC</TargetName>
     <TargetExt>.exe</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>..\Debug\ConEmu\</OutDir>
-    <IntDir>_VCBUILD\Debug\ConEmuC_x64\</IntDir>
+    <OutDir>$(ProjectDir)..\Debug\ConEmu\</OutDir>
+    <IntDir>$(ProjectDir)_VCBUILD\Debug\ConEmuC_x64\</IntDir>
     <TargetName>ConEmuC64</TargetName>
     <TargetExt>.exe</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Remote|Win32'">
     <LinkIncremental>true</LinkIncremental>
     <OutDir>Z:\ConEmu\</OutDir>
-    <IntDir>_VCBUILD\Remote\ConEmuC_Win32\</IntDir>
+    <IntDir>$(ProjectDir)_VCBUILD\Remote\ConEmuC_Win32\</IntDir>
     <TargetName>ConEmuC</TargetName>
     <TargetExt>.exe</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Remote|x64'">
     <LinkIncremental>true</LinkIncremental>
     <OutDir>Z:\ConEmu\</OutDir>
-    <IntDir>_VCBUILD\Remote\ConEmuC_x64\</IntDir>
+    <IntDir>$(ProjectDir)_VCBUILD\Remote\ConEmuC_x64\</IntDir>
     <TargetName>ConEmuC64</TargetName>
     <TargetExt>.exe</TargetExt>
   </PropertyGroup>
@@ -147,6 +156,7 @@
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <ExceptionHandling>false</ExceptionHandling>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN32;_WIN32;NDEBUG;HIDE_TODO;NOMINMAX;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -158,6 +168,8 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateMapFile>true</GenerateMapFile>
     </Link>
+    <ProjectReference>
+    </ProjectReference>
     <Manifest>
       <AdditionalManifestFiles>ConEmuC/ConEmuC.exe.manifest;%(AdditionalManifestFiles)</AdditionalManifestFiles>
     </Manifest>
@@ -176,6 +188,7 @@
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <ExceptionHandling>false</ExceptionHandling>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN64;_WIN64;NDEBUG;HIDE_TODO;NOMINMAX;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -187,6 +200,8 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateMapFile>true</GenerateMapFile>
     </Link>
+    <ProjectReference>
+    </ProjectReference>
     <Manifest>
       <AdditionalManifestFiles>ConEmuC/ConEmuC.exe.manifest;%(AdditionalManifestFiles)</AdditionalManifestFiles>
     </Manifest>
@@ -202,6 +217,7 @@
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <ExceptionHandling>false</ExceptionHandling>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN32;_WIN32;_DEBUG;HIDE_TODO;MSGLOGGER;NOMINMAX;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -211,14 +227,16 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <GenerateMapFile>true</GenerateMapFile>
     </Link>
+    <ProjectReference>
+    </ProjectReference>
     <Manifest>
       <AdditionalManifestFiles>ConEmuC/ConEmuC.exe.manifest;%(AdditionalManifestFiles)</AdditionalManifestFiles>
     </Manifest>
     <PostBuildEvent>
       <Command>echo Copying "$(SolutionDir)../Release/ConEmu/*.cmd" "../Debug/ConEmu"
-IF EXIST "$(SolutionDir)\..\Release\ConEmu\*.cmd"\ (xcopy /Q /E /Y /I "$(SolutionDir)\..\Release\ConEmu\*.cmd" "..\Debug\ConEmu" &gt; nul) ELSE (xcopy /Q /Y /I "$(SolutionDir)\..\Release\ConEmu\*.cmd" "..\Debug\ConEmu" &gt; nul)
+copy /B /Y "$(SolutionDir)\..\Release\ConEmu\*.cmd" "..\Debug\ConEmu"
 echo Copying "$(SolutionDir)../Release/ConEmu/ConEmu.l10n" "../Debug/ConEmu"
-IF EXIST "$(SolutionDir)\..\Release\ConEmu\ConEmu.l10n"\ (xcopy /Q /E /Y /I "$(SolutionDir)\..\Release\ConEmu\ConEmu.l10n" "..\Debug\ConEmu" &gt; nul) ELSE (xcopy /Q /Y /I "$(SolutionDir)\..\Release\ConEmu\ConEmu.l10n" "..\Debug\ConEmu" &gt; nul)</Command>
+copy /B /Y "$(SolutionDir)\..\Release\ConEmu\ConEmu.l10n" "..\Debug\ConEmu"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -232,6 +250,7 @@ IF EXIST "$(SolutionDir)\..\Release\ConEmu\ConEmu.l10n"\ (xcopy /Q /E /Y /I "$(S
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <ExceptionHandling>false</ExceptionHandling>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN64;_WIN64;_DEBUG;HIDE_TODO;MSGLOGGER;NOMINMAX;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -241,14 +260,16 @@ IF EXIST "$(SolutionDir)\..\Release\ConEmu\ConEmu.l10n"\ (xcopy /Q /E /Y /I "$(S
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <GenerateMapFile>true</GenerateMapFile>
     </Link>
+    <ProjectReference>
+    </ProjectReference>
     <Manifest>
       <AdditionalManifestFiles>ConEmuC/ConEmuC.exe.manifest;%(AdditionalManifestFiles)</AdditionalManifestFiles>
     </Manifest>
     <PostBuildEvent>
       <Command>echo Copying "$(SolutionDir)../Release/ConEmu/*.cmd" "../Debug/ConEmu"
-IF EXIST "$(SolutionDir)\..\Release\ConEmu\*.cmd"\ (xcopy /Q /E /Y /I "$(SolutionDir)\..\Release\ConEmu\*.cmd" "..\Debug\ConEmu" &gt; nul) ELSE (xcopy /Q /Y /I "$(SolutionDir)\..\Release\ConEmu\*.cmd" "..\Debug\ConEmu" &gt; nul)
+copy /B /Y "$(SolutionDir)\..\Release\ConEmu\*.cmd" "..\Debug\ConEmu"
 echo Copying "$(SolutionDir)../Release/ConEmu/ConEmu.l10n" "../Debug/ConEmu"
-IF EXIST "$(SolutionDir)\..\Release\ConEmu\ConEmu.l10n"\ (xcopy /Q /E /Y /I "$(SolutionDir)\..\Release\ConEmu\ConEmu.l10n" "..\Debug\ConEmu" &gt; nul) ELSE (xcopy /Q /Y /I "$(SolutionDir)\..\Release\ConEmu\ConEmu.l10n" "..\Debug\ConEmu" &gt; nul)</Command>
+copy /B /Y "$(SolutionDir)\..\Release\ConEmu\ConEmu.l10n" "..\Debug\ConEmu"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Remote|Win32'">
@@ -262,6 +283,7 @@ IF EXIST "$(SolutionDir)\..\Release\ConEmu\ConEmu.l10n"\ (xcopy /Q /E /Y /I "$(S
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <ExceptionHandling>false</ExceptionHandling>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN32;_WIN32;_DEBUG;HIDE_TODO;MSGLOGGER;NOMINMAX;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -271,14 +293,16 @@ IF EXIST "$(SolutionDir)\..\Release\ConEmu\ConEmu.l10n"\ (xcopy /Q /E /Y /I "$(S
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <GenerateMapFile>true</GenerateMapFile>
     </Link>
+    <ProjectReference>
+    </ProjectReference>
     <Manifest>
       <AdditionalManifestFiles>ConEmuC/ConEmuC.exe.manifest;%(AdditionalManifestFiles)</AdditionalManifestFiles>
     </Manifest>
     <PostBuildEvent>
       <Command>echo Copying "$(SolutionDir)../Release/ConEmu/*.cmd" "Z:/ConEmu"
-IF EXIST "$(SolutionDir)\..\Release\ConEmu\*.cmd"\ (xcopy /Q /E /Y /I "$(SolutionDir)\..\Release\ConEmu\*.cmd" "Z:\ConEmu" &gt; nul) ELSE (xcopy /Q /Y /I "$(SolutionDir)\..\Release\ConEmu\*.cmd" "Z:\ConEmu" &gt; nul)
+copy /B /Y "$(SolutionDir)\..\Release\ConEmu\*.cmd" "Z:\ConEmu"
 echo Copying "$(SolutionDir)../Release/ConEmu/ConEmu.l10n" "Z:/ConEmu"
-IF EXIST "$(SolutionDir)\..\Release\ConEmu\ConEmu.l10n"\ (xcopy /Q /E /Y /I "$(SolutionDir)\..\Release\ConEmu\ConEmu.l10n" "Z:\ConEmu" &gt; nul) ELSE (xcopy /Q /Y /I "$(SolutionDir)\..\Release\ConEmu\ConEmu.l10n" "Z:\ConEmu" &gt; nul)</Command>
+copy /B /Y "$(SolutionDir)\..\Release\ConEmu\ConEmu.l10n" "Z:\ConEmu"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Remote|x64'">
@@ -292,6 +316,7 @@ IF EXIST "$(SolutionDir)\..\Release\ConEmu\ConEmu.l10n"\ (xcopy /Q /E /Y /I "$(S
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <ExceptionHandling>false</ExceptionHandling>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN64;_WIN64;_DEBUG;HIDE_TODO;MSGLOGGER;NOMINMAX;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -301,14 +326,16 @@ IF EXIST "$(SolutionDir)\..\Release\ConEmu\ConEmu.l10n"\ (xcopy /Q /E /Y /I "$(S
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <GenerateMapFile>true</GenerateMapFile>
     </Link>
+    <ProjectReference>
+    </ProjectReference>
     <Manifest>
       <AdditionalManifestFiles>ConEmuC/ConEmuC.exe.manifest;%(AdditionalManifestFiles)</AdditionalManifestFiles>
     </Manifest>
     <PostBuildEvent>
       <Command>echo Copying "$(SolutionDir)../Release/ConEmu/*.cmd" "Z:/ConEmu"
-IF EXIST "$(SolutionDir)\..\Release\ConEmu\*.cmd"\ (xcopy /Q /E /Y /I "$(SolutionDir)\..\Release\ConEmu\*.cmd" "Z:\ConEmu" &gt; nul) ELSE (xcopy /Q /Y /I "$(SolutionDir)\..\Release\ConEmu\*.cmd" "Z:\ConEmu" &gt; nul)
+copy /B /Y "$(SolutionDir)\..\Release\ConEmu\*.cmd" "Z:\ConEmu"
 echo Copying "$(SolutionDir)../Release/ConEmu/ConEmu.l10n" "Z:/ConEmu"
-IF EXIST "$(SolutionDir)\..\Release\ConEmu\ConEmu.l10n"\ (xcopy /Q /E /Y /I "$(SolutionDir)\..\Release\ConEmu\ConEmu.l10n" "Z:\ConEmu" &gt; nul) ELSE (xcopy /Q /Y /I "$(SolutionDir)\..\Release\ConEmu\ConEmu.l10n" "Z:\ConEmu" &gt; nul)</Command>
+copy /B /Y "$(SolutionDir)\..\Release\ConEmu\ConEmu.l10n" "Z:\ConEmu"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>

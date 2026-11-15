@@ -32,6 +32,15 @@
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>Far.ConEmuTh.ico</RootNamespace>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Globals">
+    <XPDeprecationWarning>false</XPDeprecationWarning>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Globals">
+    <XPDeprecationWarning>false</XPDeprecationWarning>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Remote|Win32'" Label="Globals">
+    <XPDeprecationWarning>false</XPDeprecationWarning>
+  </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
@@ -93,43 +102,43 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>_VCBUILD\Release\Far.ConEmuTh.ico_Win32\</OutDir>
-    <IntDir>_VCBUILD\Release\Far.ConEmuTh.ico_Win32\</IntDir>
+    <OutDir>$(ProjectDir)_VCBUILD\Release\Far.ConEmuTh.ico_Win32\</OutDir>
+    <IntDir>$(ProjectDir)_VCBUILD\Release\Far.ConEmuTh.ico_Win32\</IntDir>
     <TargetName>ico</TargetName>
     <TargetExt>.dll</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>_VCBUILD\Release\Far.ConEmuTh.ico_x64\</OutDir>
-    <IntDir>_VCBUILD\Release\Far.ConEmuTh.ico_x64\</IntDir>
+    <OutDir>$(ProjectDir)_VCBUILD\Release\Far.ConEmuTh.ico_x64\</OutDir>
+    <IntDir>$(ProjectDir)_VCBUILD\Release\Far.ConEmuTh.ico_x64\</IntDir>
     <TargetName>ico</TargetName>
     <TargetExt>.dll</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>_VCBUILD\Debug\Far.ConEmuTh.ico_Win32\</OutDir>
-    <IntDir>_VCBUILD\Debug\Far.ConEmuTh.ico_Win32\</IntDir>
+    <OutDir>$(ProjectDir)_VCBUILD\Debug\Far.ConEmuTh.ico_Win32\</OutDir>
+    <IntDir>$(ProjectDir)_VCBUILD\Debug\Far.ConEmuTh.ico_Win32\</IntDir>
     <TargetName>ico</TargetName>
     <TargetExt>.dll</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>_VCBUILD\Debug\Far.ConEmuTh.ico_x64\</OutDir>
-    <IntDir>_VCBUILD\Debug\Far.ConEmuTh.ico_x64\</IntDir>
+    <OutDir>$(ProjectDir)_VCBUILD\Debug\Far.ConEmuTh.ico_x64\</OutDir>
+    <IntDir>$(ProjectDir)_VCBUILD\Debug\Far.ConEmuTh.ico_x64\</IntDir>
     <TargetName>ico</TargetName>
     <TargetExt>.dll</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Remote|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>_VCBUILD\Remote\Far.ConEmuTh.ico_Win32\</OutDir>
-    <IntDir>_VCBUILD\Remote\Far.ConEmuTh.ico_Win32\</IntDir>
+    <OutDir>$(ProjectDir)_VCBUILD\Remote\Far.ConEmuTh.ico_Win32\</OutDir>
+    <IntDir>$(ProjectDir)_VCBUILD\Remote\Far.ConEmuTh.ico_Win32\</IntDir>
     <TargetName>ico</TargetName>
     <TargetExt>.dll</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Remote|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>_VCBUILD\Remote\Far.ConEmuTh.ico_x64\</OutDir>
-    <IntDir>_VCBUILD\Remote\Far.ConEmuTh.ico_x64\</IntDir>
+    <OutDir>$(ProjectDir)_VCBUILD\Remote\Far.ConEmuTh.ico_x64\</OutDir>
+    <IntDir>$(ProjectDir)_VCBUILD\Remote\Far.ConEmuTh.ico_x64\</IntDir>
     <TargetName>ico</TargetName>
     <TargetExt>.dll</TargetExt>
   </PropertyGroup>
@@ -147,6 +156,7 @@
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <ExceptionHandling>false</ExceptionHandling>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN32;_WIN32;NDEBUG;HIDE_TODO;NOMINMAX;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -160,6 +170,8 @@
       <GenerateMapFile>true</GenerateMapFile>
       <ModuleDefinitionFile>ConEmuTh/Modules/ico/ico.def</ModuleDefinitionFile>
     </Link>
+    <ProjectReference>
+    </ProjectReference>
     <PostBuildEvent>
       <Command>copy "$(TargetPath)" "../Release/plugins/ConEmu/Thumbs/ico.t32"
 copy "$(TargetDir)$(TargetName).map" "../Release/plugins/ConEmu/Thumbs/ico.t32.map"
@@ -180,6 +192,7 @@ copy "$(TargetDir)$(TargetName).pdb" "../Release/plugins/ConEmu/Thumbs/ico.t32.p
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <ExceptionHandling>false</ExceptionHandling>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN64;_WIN64;NDEBUG;HIDE_TODO;NOMINMAX;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -193,6 +206,8 @@ copy "$(TargetDir)$(TargetName).pdb" "../Release/plugins/ConEmu/Thumbs/ico.t32.p
       <GenerateMapFile>true</GenerateMapFile>
       <ModuleDefinitionFile>ConEmuTh/Modules/ico/ico.def</ModuleDefinitionFile>
     </Link>
+    <ProjectReference>
+    </ProjectReference>
     <PostBuildEvent>
       <Command>copy "$(TargetPath)" "../Release/plugins/ConEmu/Thumbs/ico.t64"
 copy "$(TargetDir)$(TargetName).map" "../Release/plugins/ConEmu/Thumbs/ico.t64.map"
@@ -210,6 +225,7 @@ copy "$(TargetDir)$(TargetName).pdb" "../Release/plugins/ConEmu/Thumbs/ico.t64.p
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <ExceptionHandling>false</ExceptionHandling>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN32;_WIN32;_DEBUG;HIDE_TODO;MSGLOGGER;NOMINMAX;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -221,6 +237,8 @@ copy "$(TargetDir)$(TargetName).pdb" "../Release/plugins/ConEmu/Thumbs/ico.t64.p
       <GenerateMapFile>true</GenerateMapFile>
       <ModuleDefinitionFile>ConEmuTh/Modules/ico/ico.def</ModuleDefinitionFile>
     </Link>
+    <ProjectReference>
+    </ProjectReference>
     <PostBuildEvent>
       <Command>copy "$(TargetPath)" "../Debug/plugins/ConEmu/Thumbs/ico.t32"
 copy "$(TargetDir)$(TargetName).map" "../Debug/plugins/ConEmu/Thumbs/ico.t32.map"
@@ -238,6 +256,7 @@ copy "$(TargetDir)$(TargetName).pdb" "../Debug/plugins/ConEmu/Thumbs/ico.t32.pdb
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <ExceptionHandling>false</ExceptionHandling>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN64;_WIN64;_DEBUG;HIDE_TODO;MSGLOGGER;NOMINMAX;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -249,6 +268,8 @@ copy "$(TargetDir)$(TargetName).pdb" "../Debug/plugins/ConEmu/Thumbs/ico.t32.pdb
       <GenerateMapFile>true</GenerateMapFile>
       <ModuleDefinitionFile>ConEmuTh/Modules/ico/ico.def</ModuleDefinitionFile>
     </Link>
+    <ProjectReference>
+    </ProjectReference>
     <PostBuildEvent>
       <Command>copy "$(TargetPath)" "../Debug/plugins/ConEmu/Thumbs/ico.t64"
 copy "$(TargetDir)$(TargetName).map" "../Debug/plugins/ConEmu/Thumbs/ico.t64.map"
@@ -266,6 +287,7 @@ copy "$(TargetDir)$(TargetName).pdb" "../Debug/plugins/ConEmu/Thumbs/ico.t64.pdb
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <ExceptionHandling>false</ExceptionHandling>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN32;_WIN32;_DEBUG;HIDE_TODO;MSGLOGGER;NOMINMAX;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -277,6 +299,8 @@ copy "$(TargetDir)$(TargetName).pdb" "../Debug/plugins/ConEmu/Thumbs/ico.t64.pdb
       <GenerateMapFile>true</GenerateMapFile>
       <ModuleDefinitionFile>ConEmuTh/Modules/ico/ico.def</ModuleDefinitionFile>
     </Link>
+    <ProjectReference>
+    </ProjectReference>
     <PostBuildEvent>
       <Command>copy "$(TargetPath)" "Z:/plugins/ConEmu/Thumbs/ico.t32"
 copy "$(TargetDir)$(TargetName).map" "Z:/plugins/ConEmu/Thumbs/ico.t32.map"
@@ -294,6 +318,7 @@ copy "$(TargetDir)$(TargetName).pdb" "Z:/plugins/ConEmu/Thumbs/ico.t32.pdb"</Com
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <ExceptionHandling>false</ExceptionHandling>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN64;_WIN64;_DEBUG;HIDE_TODO;MSGLOGGER;NOMINMAX;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -305,6 +330,8 @@ copy "$(TargetDir)$(TargetName).pdb" "Z:/plugins/ConEmu/Thumbs/ico.t32.pdb"</Com
       <GenerateMapFile>true</GenerateMapFile>
       <ModuleDefinitionFile>ConEmuTh/Modules/ico/ico.def</ModuleDefinitionFile>
     </Link>
+    <ProjectReference>
+    </ProjectReference>
     <PostBuildEvent>
       <Command>copy "$(TargetPath)" "Z:/plugins/ConEmu/Thumbs/ico.t64"
 copy "$(TargetDir)$(TargetName).map" "Z:/plugins/ConEmu/Thumbs/ico.t64.map"

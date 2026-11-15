@@ -1,6 +1,6 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 16
+# Visual Studio Version 16
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ConEmu", "ConEmu.vcxproj", "{8CCC3EAC-786E-6982-6129-7DD64D6AF0D2}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ConEmuC", "ConEmuC.vcxproj", "{4F5E1834-BB3D-97CF-C455-22A630B4FD30}"

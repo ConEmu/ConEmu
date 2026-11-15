@@ -32,6 +32,15 @@
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>Far.ExtendedConsole</RootNamespace>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Globals">
+    <XPDeprecationWarning>false</XPDeprecationWarning>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Globals">
+    <XPDeprecationWarning>false</XPDeprecationWarning>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Remote|Win32'" Label="Globals">
+    <XPDeprecationWarning>false</XPDeprecationWarning>
+  </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
@@ -93,43 +102,43 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>..\Release\ConEmu\</OutDir>
-    <IntDir>_VCBUILD\Release\Far.ExtendedConsole_Win32\</IntDir>
+    <OutDir>$(ProjectDir)..\Release\ConEmu\</OutDir>
+    <IntDir>$(ProjectDir)_VCBUILD\Release\Far.ExtendedConsole_Win32\</IntDir>
     <TargetName>ExtendedConsole</TargetName>
     <TargetExt>.dll</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>..\Release\ConEmu\</OutDir>
-    <IntDir>_VCBUILD\Release\Far.ExtendedConsole_x64\</IntDir>
+    <OutDir>$(ProjectDir)..\Release\ConEmu\</OutDir>
+    <IntDir>$(ProjectDir)_VCBUILD\Release\Far.ExtendedConsole_x64\</IntDir>
     <TargetName>ExtendedConsole64</TargetName>
     <TargetExt>.dll</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>..\Debug\ConEmu\</OutDir>
-    <IntDir>_VCBUILD\Debug\Far.ExtendedConsole_Win32\</IntDir>
+    <OutDir>$(ProjectDir)..\Debug\ConEmu\</OutDir>
+    <IntDir>$(ProjectDir)_VCBUILD\Debug\Far.ExtendedConsole_Win32\</IntDir>
     <TargetName>ExtendedConsole</TargetName>
     <TargetExt>.dll</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>..\Debug\ConEmu\</OutDir>
-    <IntDir>_VCBUILD\Debug\Far.ExtendedConsole_x64\</IntDir>
+    <OutDir>$(ProjectDir)..\Debug\ConEmu\</OutDir>
+    <IntDir>$(ProjectDir)_VCBUILD\Debug\Far.ExtendedConsole_x64\</IntDir>
     <TargetName>ExtendedConsole64</TargetName>
     <TargetExt>.dll</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Remote|Win32'">
     <LinkIncremental>true</LinkIncremental>
     <OutDir>Z:\ConEmu\</OutDir>
-    <IntDir>_VCBUILD\Remote\Far.ExtendedConsole_Win32\</IntDir>
+    <IntDir>$(ProjectDir)_VCBUILD\Remote\Far.ExtendedConsole_Win32\</IntDir>
     <TargetName>ExtendedConsole</TargetName>
     <TargetExt>.dll</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Remote|x64'">
     <LinkIncremental>true</LinkIncremental>
     <OutDir>Z:\ConEmu\</OutDir>
-    <IntDir>_VCBUILD\Remote\Far.ExtendedConsole_x64\</IntDir>
+    <IntDir>$(ProjectDir)_VCBUILD\Remote\Far.ExtendedConsole_x64\</IntDir>
     <TargetName>ExtendedConsole64</TargetName>
     <TargetExt>.dll</TargetExt>
   </PropertyGroup>
@@ -147,6 +156,7 @@
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <ExceptionHandling>false</ExceptionHandling>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN32;_WIN32;NDEBUG;HIDE_TODO;NOMINMAX;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -160,6 +170,8 @@
       <GenerateMapFile>true</GenerateMapFile>
       <ModuleDefinitionFile>ConEmuDW/export.def</ModuleDefinitionFile>
     </Link>
+    <ProjectReference>
+    </ProjectReference>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -175,6 +187,7 @@
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <ExceptionHandling>false</ExceptionHandling>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN64;_WIN64;NDEBUG;HIDE_TODO;NOMINMAX;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -188,6 +201,8 @@
       <GenerateMapFile>true</GenerateMapFile>
       <ModuleDefinitionFile>ConEmuDW/export.def</ModuleDefinitionFile>
     </Link>
+    <ProjectReference>
+    </ProjectReference>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -200,6 +215,7 @@
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <ExceptionHandling>false</ExceptionHandling>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN32;_WIN32;_DEBUG;HIDE_TODO;MSGLOGGER;NOMINMAX;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -211,6 +227,8 @@
       <GenerateMapFile>true</GenerateMapFile>
       <ModuleDefinitionFile>ConEmuDW/export.def</ModuleDefinitionFile>
     </Link>
+    <ProjectReference>
+    </ProjectReference>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -223,6 +241,7 @@
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <ExceptionHandling>false</ExceptionHandling>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN64;_WIN64;_DEBUG;HIDE_TODO;MSGLOGGER;NOMINMAX;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -234,6 +253,8 @@
       <GenerateMapFile>true</GenerateMapFile>
       <ModuleDefinitionFile>ConEmuDW/export.def</ModuleDefinitionFile>
     </Link>
+    <ProjectReference>
+    </ProjectReference>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Remote|Win32'">
     <ClCompile>
@@ -246,6 +267,7 @@
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <ExceptionHandling>false</ExceptionHandling>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN32;_WIN32;_DEBUG;HIDE_TODO;MSGLOGGER;NOMINMAX;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -257,6 +279,8 @@
       <GenerateMapFile>true</GenerateMapFile>
       <ModuleDefinitionFile>ConEmuDW/export.def</ModuleDefinitionFile>
     </Link>
+    <ProjectReference>
+    </ProjectReference>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Remote|x64'">
     <ClCompile>
@@ -269,6 +293,7 @@
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <ExceptionHandling>false</ExceptionHandling>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN64;_WIN64;_DEBUG;HIDE_TODO;MSGLOGGER;NOMINMAX;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -280,6 +305,8 @@
       <GenerateMapFile>true</GenerateMapFile>
       <ModuleDefinitionFile>ConEmuDW/export.def</ModuleDefinitionFile>
     </Link>
+    <ProjectReference>
+    </ProjectReference>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="ConEmuDW\ConEmuDw.h" />
