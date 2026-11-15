@@ -354,7 +354,7 @@ void CPluginW995::SetStartupInfoPtr(void *aInfo)
 
 DWORD CPluginW995::GetEditorModifiedState()
 {
-	EditorInfo ei;
+	EditorInfo ei{};
 	InfoW995->EditorControl(ECTL_GETINFO, &ei);
 
 	#ifdef SHOW_DEBUG_EVENTS

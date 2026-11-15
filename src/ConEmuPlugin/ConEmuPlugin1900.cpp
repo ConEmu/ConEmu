@@ -395,7 +395,7 @@ void CPluginW1900::SetStartupInfoPtr(void *aInfo)
 
 DWORD CPluginW1900::GetEditorModifiedState()
 {
-	EditorInfo ei;
+	EditorInfo ei{};
 	InfoW1900->EditorControl(-1/*Active editor*/, ECTL_GETINFO, 0, &ei);
 #ifdef SHOW_DEBUG_EVENTS
 	char szDbg[255];

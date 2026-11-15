@@ -441,7 +441,7 @@ void CPluginW2800::SetStartupInfoPtr(void *aInfo)
 
 DWORD CPluginW2800::GetEditorModifiedState()
 {
-	EditorInfo ei;
+	EditorInfo ei = { sizeof(EditorInfo) };
 	InfoW2800->EditorControl(-1/*Active editor*/, ECTL_GETINFO, 0, &ei);
 #ifdef SHOW_DEBUG_EVENTS
 	char szDbg[255];

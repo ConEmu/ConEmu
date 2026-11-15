@@ -292,7 +292,7 @@ void CPluginAnsi::GetPluginInfoPtr(void *piv)
 
 DWORD CPluginAnsi::GetEditorModifiedState()
 {
-	EditorInfo ei;
+	EditorInfo ei{};
 	InfoA->EditorControl(ECTL_GETINFO, &ei);
 #ifdef SHOW_DEBUG_EVENTS
 	char szDbg[255];
