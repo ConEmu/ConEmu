@@ -103,6 +103,8 @@ try {
         [IO.File]::WriteAllText($solution, $content, [Text.UTF8Encoding]::new($true))
     }
     Invoke-Git diff --exit-code HEAD -- @projects
+    $untracked = @(Invoke-Git ls-files --others --exclude-standard -- @projects)
+    if ($untracked) { throw "Generated projects are missing from the commit: $($untracked -join ', ')." }
     Write-Output 'Contribution and VS2019 project generation checks passed.'
 } finally {
     Pop-Location
