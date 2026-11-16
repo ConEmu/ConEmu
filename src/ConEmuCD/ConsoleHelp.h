@@ -47,6 +47,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		L"   or: ConEmuC [-SILENT] -EXPORT[=CON|GUI|ALL] [Var1 [Var2 [...]]]\r\n" \
 		L"   or: ConEmuC -ECHO | -TYPE [...]\r\n" \
 		L"   or: ConEmuC -StoreCWD [\"dir\"]\r\n" \
+		L"   or: ConEmuC -PTY program [arguments] (Windows 10 1809+)\r\n" \
 		L"   or: ConEmuC -download [-login <name> -password <pwd>]\r\n" \
 		L"               [-proxy <address:port> [-proxylogin <name> -proxypassword <pwd>]]\r\n" \
 		L"               [-async Y|N] [-timeout[1|2] <ms>] [-agent <name>] [-debug] [-nolog]\r\n" \

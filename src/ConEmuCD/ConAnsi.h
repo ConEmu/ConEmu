@@ -29,6 +29,8 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #pragma once
 
 #include <mutex>
+#include <atomic>
+#include <map>
 #include "../common/MPipe.h"
 #include "../common/WCodePage.h"
 #include "../common/WThreads.h"
@@ -58,6 +60,14 @@ public:
 	/// for converted parts of UTF-8 data ready to written in UTF-16
 	bool OurWriteConsoleW(const wchar_t* lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten);
 
+	void SetConPtyInput(HANDLE input);
+	bool IsConPty() const { return m_ConPtyInput.load() != nullptr; }
+	DWORD TerminalInputError() const { return m_ConPtyInputError.load(); }
+	bool WriteTerminalInput(const char* data, DWORD size);
+	bool ReportTerminalString(const wchar_t* text);
+	bool ReadTerminalFrame(COORD size, std::vector<condata::CharInfo>& cells, COORD& cursor, uint64_t& version,
+		unsigned& history, std::map<unsigned, std::wstring>& links, std::map<unsigned, std::wstring>& graphemes);
+
 	/// Prepare server pipes, return client handles
 	std::pair<HANDLE,HANDLE> GetClientHandles(DWORD clientPID);
 
@@ -77,6 +87,16 @@ private:
 
 	/// Console processors
 	std::mutex m_UseMutex;
+	std::mutex m_InputMutex;
+	std::atomic<HANDLE> m_ConPtyInput{nullptr};
+	std::atomic<DWORD> m_ConPtyInputError{ERROR_SUCCESS};
+	uint64_t m_FrameVersion = 1;
+	unsigned m_ActiveHyperlink = 0, m_NextHyperlink = 1;
+	size_t m_UriChars = 0;
+	std::map<unsigned, std::wstring> m_Hyperlinks;
+	void SetHyperlink(const std::wstring& uri);
+	void PruneHyperlinks();
+	mutable CESERVER_CONSOLE_MAPPING_HDR m_ClientMap = {};
 	condata::Table m_Primary;
 	condata::Table m_Alternative;
 	bool m_UsePrimary = true;
@@ -160,6 +180,7 @@ protected:
 	}; // gDisplayCursor = {};
 
 	DisplayCursorPos gDisplayCursor = {};
+	DisplayCursorPos m_PrimaryDisplayCursor = {};
 
 	// #condata replace or forward with m_Table calls, e.g. SetAutoCRLF instead of AutoLfNl
 	struct DisplayOpt
@@ -174,8 +195,8 @@ protected:
 
 	DisplayOpt gDisplayOpt = {};
 
-	static constexpr unsigned CEAnsi_MaxPrevPart = 512;
-	static constexpr unsigned CEAnsi_MaxPrevAnsiPart = 256;
+	static constexpr unsigned CEAnsi_MaxPrevPart = 8192;
+	static constexpr unsigned CEAnsi_MaxPrevAnsiPart = 4096;
 
 	wchar_t gsPrevAnsiPart[CEAnsi_MaxPrevPart] = {};
 	ssize_t gnPrevAnsiPart = 0;

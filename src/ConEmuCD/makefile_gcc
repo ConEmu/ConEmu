@@ -19,7 +19,7 @@ BASEADDRESS =
 
 include ../makefile_gcc_inc
 
-USERLIBS += -ladvapi32 -lgdi32 -lshell32 -lshlwapi -loleaut32 -lwinmm
+USERLIBS += -ladvapi32 -lgdi32 -lshell32 -lshlwapi -lole32 -loleaut32 -lwinmm
 
 SRCS = \
 		../common/CEStr.cpp         \
@@ -68,6 +68,7 @@ SRCS = \
 		../ConEmuHk/Injects.cpp      \
 		Actions.cpp        \
 		ConAnsi.cpp        \
+		ConPty.cpp         \
 		ConAnsiImpl.cpp    \
 		ConData.cpp        \
 		ConEmuCmd.cpp      \

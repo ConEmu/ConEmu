@@ -1,4 +1,4 @@
-﻿
+
 /*
 Copyright (c) 2016-present Maximus5
 All rights reserved.
@@ -208,8 +208,10 @@ UINT CRConData::GetConsoleData(wchar_t* rpChar, CharAttr* rpAttr, UINT anWidth, 
 	//_ASSERTE(*con.pConChar!=ucBoxDblVert);
 	UINT nYMax = std::min(anHeight,nHeight);
 
-	MFileMapping<AnnotationHeader>& TrueMap = mp_RCon->m_TrueColorerMap;
-	const AnnotationInfo *pTrueData = mp_RCon->mp_TrueColorerData;
+	AnnotationHeader colorHeader = {};
+	const AnnotationInfo* pTrueData = nullptr;
+	bool absoluteColors = false;
+	const bool haveColors = mp_RCon->GetColorData(colorHeader, pTrueData, absoluteColors);
 
 	wchar_t  *pszDst = rpChar;
 	CharAttr *pcaDst = rpAttr;
@@ -231,13 +233,14 @@ UINT CRConData::GetConsoleData(wchar_t* rpChar, CharAttr* rpAttr, UINT anWidth, 
 	const AnnotationInfo *pcolEnd = nullptr;
 	BOOL bUseColorData = FALSE, bStartUseColorData = FALSE;
 
-	if (gpSet->isTrueColorer && TrueMap.IsValid() && pTrueData)
+	if (mp_RCon->UseTrueColor() && haveColors)
 	{
 		pcolSrc = pTrueData;
-		pcolEnd = pTrueData + TrueMap.Ptr()->bufferSize;
+		pcolEnd = pTrueData + colorHeader.bufferSize;
+		if (absoluteColors) pcolSrc += std::min<size_t>(colorHeader.bufferSize, static_cast<size_t>(m_sbi.srWindow.Top) * nWidth);
 		bUseColorData = TRUE;
 		WARNING("Если far/w - pcolSrc нужно поднять вверх, bStartUseColorData=TRUE, bUseColorData=FALSE");
-		if (m_sbi.dwSize.Y > (int)nHeight) // con.bBufferHeight
+		if (!absoluteColors && m_sbi.dwSize.Y > (int)nHeight) // con.bBufferHeight
 		{
 			int lnShiftRows = (m_sbi.dwSize.Y - anHeight) - m_sbi.srWindow.Top;
 
