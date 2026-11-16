@@ -1,0 +1,56 @@
+name: Build
+on:
+  push:
+    branches: [master, daily]
+  pull_request:
+    branches: [master, daily]
+
+permissions:
+  contents: read
+
+jobs:
+  contribution:
+    name: Contribution checks
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check encoding, scope and generated projects
+        shell: powershell
+        env:
+          CONTRIBUTION_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if ($env:CONTRIBUTION_BASE -match '^[0-9a-f]{40}$' -and $env:CONTRIBUTION_BASE -notmatch '^0+$') {
+            .\Deploy\Check-Contribution.ps1 -Base $env:CONTRIBUTION_BASE
+          } else {
+            .\Deploy\Check-Contribution.ps1
+          }
+
+  build:
+    name: Build (${{ matrix.platform }})
+    runs-on: windows-2022
+    needs: contribution
+    strategy:
+      matrix:
+        platform: [x64, Win32]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: microsoft/setup-msbuild@v2
+      - name: Build Release
+        run: msbuild src\CE.sln -m /p:Platform=${{ matrix.platform }} /p:Configuration=Release /p:PlatformToolset=v143 /p:WindowsTargetPlatformVersion=10.0
+      - name: Run Release tests
+        run: .\Release\Tests_Release_${{ matrix.platform }}.exe
+      - uses: actions/upload-artifact@v6
+        with:
+          name: ConEmu-${{ matrix.platform }}-Release
+          path: |
+            Release/*.exe
+            Release/*.dll
+            Release/ConEmu/
+          retention-days: 90

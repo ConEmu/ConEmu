@@ -16,16 +16,38 @@ trigger:
     - '*.txt'
     - .github/workflows/codeql-analysis.yml
 
+pr:
+  branches:
+    include:
+    - master
+    - daily
+
 pool:
-  vmImage: 'windows-2019'
+  vmImage: 'windows-2022'
 
 variables:
   solution: 'src/CE.sln'
 
 jobs:
 
+- job: 'Contribution'
+  displayName: 'Contribution checks'
+  steps:
+  - checkout: self
+    submodules: recursive
+    fetchDepth: 0
+  - powershell: |
+      if ($env:SYSTEM_PULLREQUEST_TARGETBRANCH) {
+        git fetch --no-tags origin $env:SYSTEM_PULLREQUEST_TARGETBRANCH
+        if ($LASTEXITCODE -ne 0) { throw 'Could not fetch the pull request base.' }
+        $base = 'FETCH_HEAD'
+      }
+      .\Deploy\Check-Contribution.ps1 -Base $base
+    displayName: 'Check encoding, scope and generated projects'
+
 - job: 'x64_Release'
   displayName: 'x64|Release'
+  dependsOn: Contribution
   timeoutInMinutes: 15
   variables:
     platform: 'x64'
@@ -39,6 +61,8 @@ jobs:
       solution: '$(solution)'
       platform: '$(platform)'
       configuration: '$(configuration)'
+      vsVersion: '17.0'
+      msbuildArgs: '/p:PlatformToolset=v143 /p:WindowsTargetPlatformVersion=10.0'
   - script: |
       cd
       call "$(configuration)\Tests_$(configuration)_$(platform).exe" --gtest_color=yes
@@ -47,6 +71,7 @@ jobs:
 
 - job: 'Win32_Release'
   displayName: 'Win32|Release'
+  dependsOn: Contribution
   timeoutInMinutes: 15
   variables:
     platform: 'Win32'
@@ -60,6 +85,8 @@ jobs:
       solution: '$(solution)'
       platform: '$(platform)'
       configuration: '$(configuration)'
+      vsVersion: '17.0'
+      msbuildArgs: '/p:PlatformToolset=v143 /p:WindowsTargetPlatformVersion=10.0'
   - script: |
       cd
       call "$(configuration)\Tests_$(configuration)_$(platform).exe" --gtest_color=yes

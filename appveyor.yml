@@ -5,11 +5,17 @@ configuration:
 platform:
 - x64
 - Win32
-clone_depth: 1
 before_build:
-- cmd: >-
+- ps: |
+    if ($env:APPVEYOR_PULL_REQUEST_NUMBER) {
+      git fetch --no-tags origin "refs/heads/$env:APPVEYOR_REPO_BRANCH"
+      if ($LASTEXITCODE -ne 0) { throw 'Could not fetch the pull request base.' }
+      $base = 'FETCH_HEAD'
+    }
     git submodule update --init --recursive
-
+    if ($LASTEXITCODE -ne 0) { throw 'Could not initialize submodules.' }
+    .\Deploy\Check-Contribution.ps1 -Base $base
+- cmd: >-
     mkdir Debug\plugins\ConEmu\Background
 
     mkdir Debug\plugins\ConEmu\Lines
