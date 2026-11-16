@@ -171,6 +171,7 @@ public:
 	bool IsThemed();
 	static bool IsHighContrast();
 	static bool IsWindowsDarkMode();
+	static COLORREF WindowsAccentColor();
 	static COLORREF BlendColors(COLORREF base, COLORREF tint, unsigned tintPercent);
 	void ApplyPopupMenuTheme(HWND owner);
 	void EnableDarkCaption(HWND window);

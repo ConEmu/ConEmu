@@ -361,6 +361,11 @@ bool CSetDlgButtons::ProcessButtonClick(HWND hDlg, WORD CB, BYTE uCheck)
 		case cbTabsLocationBottom:
 			OnBtn_TabsLocationBottom(hDlg, CB, uCheck);
 			break;
+		case cbTabsUseWindowsAccent:
+			gpSet->isTabsUseWindowsAccent = (uCheck == BST_CHECKED);
+			if (gpConEmu->mp_TabBar)
+				gpConEmu->mp_TabBar->Invalidate();
+			break;
 		case cbOneTabPerGroup:
 			OnBtn_OneTabPerGroup(hDlg, CB, uCheck);
 			break;

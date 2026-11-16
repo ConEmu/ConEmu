@@ -1032,6 +1032,7 @@ BEGIN
     CONTROL         "Auto show",rbTabsAuto,"Button",BS_AUTORADIOBUTTON,10,28,86,8
     CONTROL         "Don't show",rbTabsNone,"Button",BS_AUTORADIOBUTTON,10,42,86,8
     CONTROL         "Tabs on bottom",cbTabsLocationBottom,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,10,57,86,8
+    CONTROL         "Use Windows accent color for tabs and toolbar",cbTabsUseWindowsAccent,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,99,57,240,8
     RTEXT           "Tab button (labels):",stTabBtnDblClickAction,9,223,83,8
     COMBOBOX        tTabBtnDblClickAction,96,221,93,67,CBS_DROPDOWNLIST | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
     RTEXT           "Tab bar:",stTabBarDblClickAction,192,223,83,8

@@ -53,6 +53,7 @@ LRESULT CSetPgTabs::OnInitDialog(HWND hDlg, bool abInitial)
 	checkRadioButton(hDlg, rbTabsAlways, rbTabsNone, (gpSet->isTabs == 2) ? rbTabsAuto : gpSet->isTabs ? rbTabsAlways : rbTabsNone);
 
 	checkDlgButton(hDlg, cbTabsLocationBottom, (gpSet->nTabsLocation == 1) ? BST_CHECKED : BST_UNCHECKED);
+	checkDlgButton(hDlg, cbTabsUseWindowsAccent, gpSet->isTabsUseWindowsAccent);
 
 	checkDlgButton(hDlg, cbOneTabPerGroup, gpSet->isOneTabPerGroup);
 

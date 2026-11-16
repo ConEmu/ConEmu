@@ -776,6 +776,7 @@ struct Settings
 		char isTabs; // 0 - don't show, 1 - always show, 2 - auto show
 		//reg->Load(L"TabsLocation", nTabsLocation);
 		BYTE nTabsLocation; // 0 - top, 1 - bottom
+		bool isTabsUseWindowsAccent;
 		//reg->Load(L"TabIcons", isTabIcons);
 		bool isTabIcons;
 		//reg->Load(L"OneTabPerGroup", isOneTabPerGroup);
