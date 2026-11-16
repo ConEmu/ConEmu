@@ -185,7 +185,7 @@ protected:
 				if (ubr == 0 && ubrType == REG_DWORD && UBR && rid == 0 && relType == REG_SZ && *ReleaseId)
 					result = CEStr(ReleaseId, L", UBR: ", ultow_s(UBR, szUBR, 10), pszSP);
 				else if (rid == 0 && relType == REG_SZ && *ReleaseId)
-					result = CEStr(ReleaseId, pszSP);
+					result = CEStr(ReleaseId, pszSP.c_str());
 				else if (ubr == 0 && ubrType == REG_DWORD && UBR)
 					result = CEStr(ReleaseId, L"UBR(", ultow_s(UBR, szUBR, 10), L")", pszSP);
 				RegCloseKey(hk);

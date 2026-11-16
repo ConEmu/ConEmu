@@ -90,4 +90,13 @@ SRCS = \
 		SetHook.cpp        \
 		ShellProcessor.cpp
 
+ifeq ($(ARM64),1)
+DEF = export.arm64.def
+BASEADDRESS =
+SRCS := $(filter-out ../modules/minhook/% hde.c,$(SRCS))
+SRCS += AsyncCmdQueue.cpp DllOptions.cpp ../common/CmdArg.cpp ../common/MEvent.cpp ../common/WRegistry.cpp
+USERLIBSFIRST += $(DETOURS_LIB)
+USERLIBS += -lshlwapi -lole32 -ladvapi32 -lshell32 -lwinmm
+endif
+
 include ../makefile_gcc_target

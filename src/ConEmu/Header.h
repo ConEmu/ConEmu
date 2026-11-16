@@ -38,7 +38,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "../common/defines.h"
 
-#include <Shlwapi.h>
+#include <shlwapi.h>
 //#include <vector>
 //#if !defined(__GNUC__)
 //#include <crtdbg.h>

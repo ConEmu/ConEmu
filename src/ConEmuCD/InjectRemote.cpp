@@ -40,6 +40,51 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "../ConEmu/version.h"
 #include "../ConEmuHk/Injects.h"
 
+#if defined(CONEMU_ARM64_HOOKS)
+static CINFILTRATE_EXIT_CODES LoadArm64Hook(HANDLE process, HMODULE remoteKernel, LPCWSTR path)
+{
+	const auto offset = gfLoadLibrary.fnPtr - reinterpret_cast<UINT_PTR>(gfLoadLibrary.module);
+	const auto load = reinterpret_cast<LPTHREAD_START_ROUTINE>(
+		reinterpret_cast<UINT_PTR>(remoteKernel) + offset);
+	const size_t bytes = (wcslen(path) + 1) * sizeof(*path);
+	void* const remotePath = VirtualAllocEx(process, nullptr, bytes,
+		MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	if (!remotePath)
+		return CIR_VirtualAllocEx;
+
+	CINFILTRATE_EXIT_CODES result = CIR_WriteProcessMemory;
+	bool pathInUse = false;
+	if (WriteProcessMemory(process, remotePath, path, bytes, nullptr))
+	{
+		result = CIR_InfiltrateGeneral;
+		const HANDLE thread = CreateRemoteThread(process, nullptr, 0, load, remotePath, 0, nullptr);
+		if (thread)
+		{
+			pathInUse = WaitForSingleObject(thread, 10000) != WAIT_OBJECT_0;
+			CloseHandle(thread);
+			if (!pathInUse)
+			{
+				// GetExitCodeThread cannot report a full 64-bit HMODULE.
+				MToolHelpModule modules(GetProcessId(process));
+				MODULEENTRY32 module = {};
+				while (modules.Next(module))
+				{
+					if (lstrcmpiW(path, module.szExePath) == 0)
+					{
+						result = CIR_OK;
+						break;
+					}
+				}
+			}
+		}
+	}
+	// Windows reclaims this buffer at exit if the loader is still using it.
+	if (!pathInUse)
+		VirtualFreeEx(process, remotePath, 0, MEM_RELEASE);
+	return result;
+}
+#endif
+
 // 0 - OK, иначе - ошибка
 // Здесь вызывается CreateRemoteThread
 CINFILTRATE_EXIT_CODES InfiltrateDll(HANDLE hProcess, HMODULE ptrOuterKernel, LPCWSTR asConEmuHk)
@@ -238,7 +283,7 @@ CINFILTRATE_EXIT_CODES PrepareHookModule(wchar_t (&szModule)[MAX_PATH+16])
 
 	swprintf_c(szAddName,
 		L"\\" CEDEFTERMDLLFORMAT /*L"ConEmuHk%s.%02u%02u%02u%s.dll"*/,
-		WIN3264TEST(L"",L"64"), MVV_1, MVV_2, MVV_3, szMinor);
+		CEDEFTERMHK_SUFFIX, MVV_1, MVV_2, MVV_3, szMinor);
 
 	nLen = wcslen(szNewPath);
 	if (szNewPath[nLen-1] != L'\\')
@@ -318,7 +363,11 @@ static bool EnumerateModules(const DWORD nRemotePID, const wchar_t* szKernelName
 	// 141201 - Also we need to be sure in kernel32.dll|KernelBase.dll address
 
 	wchar_t szName[64] = L"";
+#if defined(CONEMU_ARM64_HOOKS)
+	const auto* pszConEmuHk = L"conemuhkarm64.";
+#else
 	const auto* pszConEmuHk = WIN3264TEST(L"conemuhk.", L"conemuhk64.");
+#endif
 	const size_t nDllNameLen = wcslen(pszConEmuHk);
 	// Out preferred module name
 	wchar_t szOurName[40] = L"";
@@ -326,7 +375,7 @@ static bool EnumerateModules(const DWORD nRemotePID, const wchar_t* szKernelName
 	lstrcpyn(szMinor, _CRT_WIDE(MVV_4a), countof(szMinor));
 	swprintf_c(szOurName,
 		CEDEFTERMDLLFORMAT /*L"ConEmuHk%s.%02u%02u%02u%s.dll"*/,
-		WIN3264TEST(L"",L"64"), MVV_1, MVV_2, MVV_3, szMinor);
+		CEDEFTERMHK_SUFFIX, MVV_1, MVV_2, MVV_3, szMinor);
 	CharLowerBuff(szOurName, lstrlen(szOurName));
 
 	// Go to enumeration
@@ -352,6 +401,10 @@ static bool EnumerateModules(const DWORD nRemotePID, const wchar_t* szKernelName
 		}
 
 		// ConEmuHk*.*.dll?
+#if defined(CONEMU_ARM64_HOOKS)
+		if (lstrcmpiW(szName, ConEmuHk_64_DLL) == 0)
+			bAlreadyHooked = true;
+#endif
 		if (!bAlreadyHooked
 			&& (wmemcmp(szName, pszConEmuHk, nDllNameLen) == 0)
 			&& (wmemcmp(szName + lstrlen(szName) - 4, L".dll", 4) == 0))
@@ -386,6 +439,11 @@ static bool EnumerateModules(const DWORD nRemotePID, const wchar_t* szKernelName
 // Здесь вызывается CreateRemoteThread
 CINFILTRATE_EXIT_CODES InjectRemote(DWORD nRemotePID, bool abDefTermOnly /*= false */, LPDWORD pnErrCode /*= nullptr*/)
 {
+#if (defined(__aarch64__) || defined(_M_ARM64)) && !defined(CONEMU_ARM64_HOOKS)
+	if (pnErrCode) *pnErrCode = ERROR_NOT_SUPPORTED;
+	SetLastError(ERROR_NOT_SUPPORTED);
+	return CIR_GeneralError;
+#else
 	CINFILTRATE_EXIT_CODES iRc = CIR_GeneralError/*-1*/;
 	DWORD nErrCode = 0;
 	const bool lbWin64 = WIN3264TEST((IsWindows64()!=0),true);
@@ -455,6 +513,14 @@ CINFILTRATE_EXIT_CODES InjectRemote(DWORD nRemotePID, bool abDefTermOnly /*= fal
 	}
 
 	LogString(L"...GetModuleFileName");
+
+#if defined(CONEMU_ARM64_HOOKS)
+	if (!IsNativeArm64Target(hProcInfo))
+	{
+		nErrCode = GetLastError();
+		goto wrap;
+	}
+#endif
 
 	if (!GetModuleFileName(nullptr, szSelf, MAX_PATH))
 	{
@@ -651,7 +717,11 @@ CINFILTRATE_EXIT_CODES InjectRemote(DWORD nRemotePID, bool abDefTermOnly /*= fal
 
 	LogString(L"InfiltrateDll");
 
+#if defined(CONEMU_ARM64_HOOKS)
+	iRc = LoadArm64Hook(hProc, ptrOuterKernel, szHooks);
+#else
 	iRc = InfiltrateDll(hProc, ptrOuterKernel, szHooks);
+#endif
 
 	if (gpLogSize)
 	{
@@ -695,4 +765,5 @@ wrap:
 	std::ignore = lbWin64;
 	std::ignore = nWrapperWait;
 	return iRc;
+#endif
 }

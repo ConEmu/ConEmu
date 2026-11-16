@@ -24,9 +24,56 @@ struct InjectHookFunctions
 	UINT_PTR fnLdrGetDllHandleByName;
 };
 
+#if defined(CONEMU_ARM64_HOOKS)
+#include <detours.h>
+#endif
+
 // Use WriteProcessMemory and SetThreadContext
 inline int InjectHookDLL(PROCESS_INFORMATION pi, InjectHookFunctions* pfn /*UINT_PTR fnLoadLibrary*/, int ImageBits/*32/64*/, LPCWSTR apszHookDllPath, DWORD_PTR* ptrAllocated, DWORD* pnAllocated)
 {
+#if defined(__aarch64__) || defined(_M_ARM64)
+	if (ptrAllocated) *ptrAllocated = 0;
+	if (pnAllocated) *pnAllocated = 0;
+#if defined(CONEMU_ARM64_HOOKS)
+	if (!IsNativeArm64Target(pi.hProcess))
+		return CIH_AsmGeneralError;
+
+	wchar_t dllPath[MAX_PATH * 2] = {};
+	if (FAILED(StringCchCopyW(dllPath, countof(dllPath), apszHookDllPath))
+		|| FAILED(StringCchCatW(dllPath, countof(dllPath), L"\\" ConEmuHk_64_DLL)))
+	{
+		SetLastError(ERROR_FILENAME_EXCED_RANGE);
+		return CIH_AsmGeneralError;
+	}
+	const DWORD attributes = GetFileAttributesW(dllPath);
+	if (attributes == INVALID_FILE_ATTRIBUTES)
+		return CIH_AsmGeneralError;
+	if (attributes & FILE_ATTRIBUTE_DIRECTORY)
+	{
+		SetLastError(ERROR_FILE_NOT_FOUND);
+		return CIH_AsmGeneralError;
+	}
+
+	// PE import names use narrow characters. Refuse paths that cannot round-trip.
+	char path[MAX_PATH * 4] = {};
+	const bool utf8 = GetACP() == CP_UTF8;
+	BOOL substituted = FALSE;
+	if (!WideCharToMultiByte(CP_ACP, utf8 ? WC_ERR_INVALID_CHARS : WC_NO_BEST_FIT_CHARS,
+		dllPath, -1, path, sizeof(path), nullptr, utf8 ? nullptr : &substituted))
+		return CIH_AsmGeneralError;
+	if (substituted)
+	{
+		SetLastError(ERROR_NO_UNICODE_TRANSLATION);
+		return CIH_AsmGeneralError;
+	}
+	LPCSTR imports[] = {path};
+	return DetourUpdateProcessWithDll(pi.hProcess, imports, countof(imports))
+		? CIH_OK : CIH_AsmGeneralError;
+#else
+	SetLastError(ERROR_NOT_SUPPORTED);
+	return CIH_AsmGeneralError;
+#endif
+#else
 	CINJECTHK_EXIT_CODES iRc = CIH_AsmGeneralError/*-1000*/;
 	CONTEXT		context = {};
 	void*		mem		 = nullptr;
@@ -543,4 +590,5 @@ wrap:
 	UNREFERENCED_PARAMETER(dwErrCode);
 
 	return iRc;
+#endif
 }

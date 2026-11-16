@@ -77,6 +77,10 @@ SetConsoleCallbacks_t SetConsoleCallbacks = NULL;
 // Эту функцию нужно позвать из DllMain плагина
 bool StartupHooks(HMODULE ahOurDll)
 {
+#if (defined(_M_ARM64) || defined(__aarch64__)) && !defined(CONEMU_ARM64_HOOKS)
+	// This ARM64 build has no injection library. Keep the plugin IPC available.
+	return false;
+#else
 	WARNING("Добавить в аргументы строковый параметр - инфа об ошибке");
 
 	if (ghHooksModule == NULL)
@@ -84,6 +88,11 @@ bool StartupHooks(HMODULE ahOurDll)
 		LPCWSTR szHkModule = ConEmuHk_DLL_3264;
 		ghHooksModule = GetModuleHandle(szHkModule);
 
+#if defined(CONEMU_ARM64_HOOKS)
+		// Keep Far's IPC path available when injection was disabled for this tab.
+		if (!ghHooksModule)
+			return false;
+#endif
 		if ((ghHooksModule == NULL) && (ghConEmuWndDC != NULL))
 		{
 			// Попробовать выполнить LoadLibrary? в некоторых случаях GetModuleHandle может обламываться
@@ -151,6 +160,7 @@ bool StartupHooks(HMODULE ahOurDll)
 	SetFarHookMode(&gFarMode);
 
 	return true;
+#endif
 }
 
 void StartupConsoleHooks()

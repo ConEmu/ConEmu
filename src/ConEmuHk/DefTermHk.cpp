@@ -124,7 +124,7 @@ bool CDefTermHk::InitDefTerm()
 		wchar_t szAddName[40];
 		msprintf(szAddName, countof(szAddName),
 			CEDEFTERMDLLFORMAT /*L"ConEmuHk%s.%02u%02u%02u%s.dll"*/,
-			WIN3264TEST(L"",L"64"), MVV_1, MVV_2, MVV_3, szMinor);
+			CEDEFTERMHK_SUFFIX, MVV_1, MVV_2, MVV_3, szMinor);
 		//LPCWSTR pszOurName = PointToName(szOurName);
 		wchar_t* pszDot = wcschr(szAddName, L'.');
 		wchar_t szCheckName[MAX_PATH+1];

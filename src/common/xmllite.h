@@ -1271,12 +1271,14 @@ EXTERN_C const IID IID_IXmlWriter;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // IID helpers
-#if !defined(__GNUC__) || defined(__MINGW64_VERSION_MAJOR)
+#if !defined(__GNUC__)
 #define IID_IXmlReader   __uuidof(IXmlReader)
-#define IID_IXmlWriter   __uuidof(IXmlWriter)
-#define IID_IXmlResolver __uuidof(IXmlResolver)
 #else
 const IID IID_IXmlReader = { 0x7279FC81, 0x709D, 0x4095, {0xB6, 0x3D, 0x69, 0xFE, 0x4B, 0x0D, 0x90, 0x30} };
+#endif
+#if !defined(__GNUC__) || defined(__MINGW64_VERSION_MAJOR)
+#define IID_IXmlWriter   __uuidof(IXmlWriter)
+#define IID_IXmlResolver __uuidof(IXmlResolver)
 #endif
 
 

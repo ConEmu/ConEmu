@@ -238,7 +238,7 @@ int MDEBUG_CHK = TRUE;
 
 bool LogString(LPCWSTR asInfo, bool abWriteTime /*= true*/, bool abWriteLine /*= true*/)
 {
-	return gpConEmu->LogString(asInfo, abWriteTime, abWriteLine);
+	return gpConEmu && gpConEmu->LogString(asInfo, abWriteTime, abWriteLine);
 }
 
 void ShutdownGuiStep(LPCWSTR asInfo, int nParm1 /*= 0*/, int nParm2 /*= 0*/, int nParm3 /*= 0*/, int nParm4 /*= 0*/)
@@ -836,7 +836,8 @@ int MsgBox(LPCTSTR lpText, UINT uType, LPCTSTR lpCaption /*= nullptr*/, HWND ahP
 	// If there were problems with displaying error box, MessageBox will return default button
 	// This may cause infinite loops in some cases
 	SetLastError(0);
-	int nBtn = MessageBox(hParent, lpText ? lpText : L"<nullptr>", lpCaption ? lpCaption : gpConEmu->GetLastTitle(), uType);
+	const auto caption = lpCaption ? lpCaption : (gpConEmu ? gpConEmu->GetLastTitle() : L"ConEmu");
+	int nBtn = MessageBox(hParent, lpText ? lpText : L"<nullptr>", caption, uType);
 	DWORD nErr = GetLastError();
 
 	ghDlgPendingFrom = nullptr;
@@ -1999,7 +2000,7 @@ void AssertBox(LPCTSTR szText, LPCTSTR szFile, const UINT nLine, LPEXCEPTION_POI
 					L"\r\n" L"Please Zip it and send to developer (via DropBox etc.)\r\n",
 					CEREPORTCRASH /* https://conemu.github.io/en/Issues.html... */)
 				: CEStr();
-			dumpMessage = CEStr(dumpInfo.fullInfo, fileMsg);
+			dumpMessage = CEStr(dumpInfo.fullInfo, fileMsg.c_str());
 			const CEStr clipMessage(L"```\r\n", szFull, L"\r\n```\r\n\r\n", dumpMessage);
 			CopyToClipboard(
 				!clipMessage.IsEmpty() ? clipMessage.c_str() :

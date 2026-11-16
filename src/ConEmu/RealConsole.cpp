@@ -36,6 +36,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // To catch gh#222
 #undef USE_SEH
 
+#include <cstdlib>
 #include "Header.h"
 #include "../common/shlobj.h"
 

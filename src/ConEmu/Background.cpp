@@ -584,7 +584,7 @@ void CBackground::NeedBackgroundUpdate()
 // Создает (или возвращает уже созданный) HDC (CompatibleDC) для mp_BkImgData
 bool CBackground::PutPluginBackgroundImage(/*CBackground* pBack,*/ LONG X, LONG Y, LONG Width, LONG Height)
 {
-	if (!this) return nullptr;
+	if (!this) return false;
 
 	_ASSERTE(isMainThread());
 

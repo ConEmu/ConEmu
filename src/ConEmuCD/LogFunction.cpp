@@ -31,7 +31,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "ConEmuSrv.h"
 #include "ConsoleArgs.h"
 #include <algorithm>
-#include <Windows.h>
+#include <windows.h>
 
 namespace {
 const wchar_t kFnBegin[] = L" [begin]";

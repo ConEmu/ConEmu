@@ -1,0 +1,16 @@
+EXPORTS
+    DetourFinishHelperProcess @1 NONAME
+    SetHookCallbacks
+    SetLoadLibraryCallback
+    SetFarHookMode
+    GetRealConsoleWindow
+    GetLoadLibraryW
+    RequestTrampolines
+    GetWriteConsoleW
+    RequestLocalServer
+    WriteProcessed
+    WriteProcessed2
+    WriteProcessed3
+    WriteProcessedA
+    RequestDefTermShutdown
+    RequestTermConnector

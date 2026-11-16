@@ -110,6 +110,9 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "hkConsoleInput.h"
 #include "hkEnvironment.h"
 #include "../ConEmuCD/ExportedFunctions.h"
+#if defined(CONEMU_ARM64_HOOKS)
+#include <detours.h>
+#endif
 
 
 // Visual Studio 2015 Universal CRT
@@ -1940,6 +1943,10 @@ extern "C"
 #endif
 BOOL WINAPI DllMain(HINSTANCE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
 {
+#if defined(CONEMU_ARM64_HOOKS)
+	if (ul_reason_for_call == DLL_PROCESS_ATTACH)
+		DetourRestoreAfterWith();
+#endif
 	BOOL lbAllow;
 
 #if defined(_DEBUG) && !defined(_WIN64)

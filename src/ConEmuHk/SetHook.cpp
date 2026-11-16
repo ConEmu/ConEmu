@@ -62,7 +62,13 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "SetHook.h"
 #include "ShellProcessor.h"
 #include "DllOptions.h"
+#if defined(_M_ARM64) || defined(__aarch64__)
+#include <detours.h>
+#include <tlhelp32.h>
+#include <vector>
+#else
 #include "../modules/minhook/include/MinHook.h"
+#endif
 #include "../common/HkFunc.h"
 #include "../common/MWnd.h"
 #include "../common/WObjects.h"
@@ -100,12 +106,14 @@ namespace HookLogger
 	LONG   g_callsIdx = -1;
 };
 
+#if !defined(_M_ARM64) && !defined(__aarch64__)
 MH_STATUS g_mhInit = MH_UNKNOWN;
 MH_STATUS g_mhCreate = MH_UNKNOWN;
 MH_STATUS g_mhEnable = MH_UNKNOWN;
 MH_STATUS g_mhCritical = MH_UNKNOWN;
 MH_STATUS g_mhDisableAll = MH_UNKNOWN;
 MH_STATUS g_mhDeinit = MH_UNKNOWN;
+#endif
 
 
 //!!!All dll names MUST BE LOWER CASE!!!
@@ -199,7 +207,7 @@ void CheckLoadedModule(LPCWSTR asModule)
 
 				for (size_t f = 0; f < countof(Checks[m].Funcs) && Checks[m].Funcs[f].sFuncName; f++)
 				{
-					*Checks[m].Funcs[f].pFuncPtr = static_cast<void*>(GetProcAddress(*Checks[m].pModulePtr, Checks[m].Funcs[f].sFuncName));
+					*Checks[m].Funcs[f].pFuncPtr = reinterpret_cast<void*>(GetProcAddress(*Checks[m].pModulePtr, Checks[m].Funcs[f].sFuncName));
 				}
 			}
 		}
@@ -464,13 +472,13 @@ FARPROC WINAPI GetLoadLibraryW()
 	// KERNEL ADDRESS
 	LPVOID fnLoadLibraryW = nullptr; // Can't use (LPVOID)&LoadLibraryW anymore, our imports are changed
 	HookItem* p = nullptr;
-	if (GetOriginalAddress(static_cast<LPVOID>(OnLoadLibraryW), HOOK_FN_ID(LoadLibraryW), nullptr, &p, true))
+	if (GetOriginalAddress(reinterpret_cast<LPVOID>(OnLoadLibraryW), HOOK_FN_ID(LoadLibraryW), nullptr, &p, true))
 	{
 		fnLoadLibraryW = p->HookedAddress;
 		if (!fnLoadLibraryW)
 		{
 			_ASSERTEX(p->HookedAddress && "LoadLibraryW was not hooked?");
-			fnLoadLibraryW = static_cast<LPVOID>(&LoadLibraryW);
+			fnLoadLibraryW = reinterpret_cast<LPVOID>(&LoadLibraryW);
 		}
 	}
 	else
@@ -478,12 +486,12 @@ FARPROC WINAPI GetLoadLibraryW()
 		// fnLoadLibraryW could be nullptr if we don't have to hook LoadLibraryW at all
 		_ASSERTEX(gnLdrDllNotificationUsed == ldr_FullSupport && "Failed to find function address in Kernel32");
 	}
-	return static_cast<FARPROC>(fnLoadLibraryW);
+	return reinterpret_cast<FARPROC>(fnLoadLibraryW);
 }
 
 FARPROC WINAPI GetWriteConsoleW()
 {
-	return static_cast<FARPROC>(GetOriginalAddress(static_cast<LPVOID>(OnWriteConsoleW), HOOK_FN_ID(WriteConsoleW)));
+	return reinterpret_cast<FARPROC>(GetOriginalAddress(reinterpret_cast<LPVOID>(OnWriteConsoleW), HOOK_FN_ID(WriteConsoleW)));
 }
 
 // Our modules (ConEmuCD.dll, ConEmuDW.dll, ConEmu.dll and so on)
@@ -530,6 +538,7 @@ int InitHooks(HookItem* apHooks)
 
 	if (gpHooks == nullptr)
 	{
+#if !defined(_M_ARM64) && !defined(__aarch64__)
 		// gh#250: Fight with CreateToolhelp32Snapshot lags
 		MH_INITIALIZE mhInit = {sizeof(mhInit), 0, nullptr, nullptr, nullptr, nullptr};
 		mhInit.Flags = MH_FLAGS_SKIP_EXEC_CHECK;
@@ -556,6 +565,7 @@ int InitHooks(HookItem* apHooks)
 			_ASSERTE(g_mhInit == MH_OK);
 			return -1;
 		}
+#endif
 
 		gpHooks = static_cast<HookItem*>(calloc(sizeof(HookItem), MAX_HOOKED_PROCS));
 		if (!gpHooks)
@@ -1572,6 +1582,79 @@ void UnsetImports()
 
 
 /// Set hooks using trampolines
+#if defined(_M_ARM64) || defined(__aarch64__)
+static bool UpdateArm64Hooks(bool attach)
+{
+	std::vector<HANDLE> threads;
+	const DWORD processId = GetCurrentProcessId();
+	const DWORD threadId = GetCurrentThreadId();
+	const HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+	if (snapshot == INVALID_HANDLE_VALUE)
+		return false;
+
+	THREADENTRY32 entry = {};
+	entry.dwSize = sizeof(entry);
+	bool complete = Thread32First(snapshot, &entry) != FALSE;
+	if (complete)
+	{
+		do
+		{
+			if (entry.th32OwnerProcessID != processId || entry.th32ThreadID == threadId)
+				continue;
+			const HANDLE thread = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT |
+				THREAD_SET_CONTEXT | THREAD_QUERY_INFORMATION, FALSE, entry.th32ThreadID);
+			if (thread)
+				threads.push_back(thread);
+			else if (GetLastError() != ERROR_INVALID_PARAMETER)
+			{
+				complete = false;
+				break;
+			}
+		} while (Thread32Next(snapshot, &entry));
+		complete = complete && GetLastError() == ERROR_NO_MORE_FILES;
+	}
+	CloseHandle(snapshot);
+
+	bool success = false;
+	if (complete && DetourTransactionBegin() == NO_ERROR)
+	{
+		LONG status = NO_ERROR;
+		for (int i = 0; status == NO_ERROR && gpHooks[i].NewAddress; ++i)
+		{
+			auto& hook = gpHooks[i];
+			if (attach && hook.HookedAddress && !hook.CallAddress)
+			{
+				hook.CallAddress = hook.HookedAddress;
+				status = DetourAttach(&hook.CallAddress, const_cast<void*>(hook.NewAddress));
+			}
+			else if (!attach && hook.CallAddress)
+				status = DetourDetach(&hook.CallAddress, const_cast<void*>(hook.NewAddress));
+		}
+
+		for (const HANDLE thread : threads)
+		{
+			if (status != NO_ERROR)
+				break;
+			status = DetourUpdateThread(thread);
+		}
+		if (status == NO_ERROR)
+			success = DetourTransactionCommit() == NO_ERROR;
+		else
+			DetourTransactionAbort();
+
+		for (int i = 0; gpHooks[i].NewAddress; ++i)
+		{
+			auto& hook = gpHooks[i];
+			if (hook.CallAddress == hook.HookedAddress)
+				hook.CallAddress = nullptr;
+		}
+	}
+	for (const HANDLE thread : threads)
+		CloseHandle(thread);
+	return success;
+}
+#endif
+
 bool SetAllHooks()
 {
 	if (!gpHooks)
@@ -1613,6 +1696,11 @@ bool SetAllHooks()
 	_ASSERTE(gnHookMainThreadId!=0);
 	HLOGEND();
 
+#if defined(_M_ARM64) || defined(__aarch64__)
+	gnDllState |= ds_HooksStarted;
+	if (!UpdateArm64Hooks(true))
+		return false;
+#else
 	MH_STATUS status;
 	HLOG("SetAllHooks.MH_CreateHook", LODWORD(gnHookedFuncs));
 	for (int i = 0; gpHooks[i].NewAddress; i++)
@@ -1633,6 +1721,7 @@ bool SetAllHooks()
 	g_mhEnable = status = MH_EnableHook(MH_ALL_HOOKS);
 	HLOGEND();
 	_ASSERTE(status == MH_OK);
+#endif
 
 	DebugString(L"SetAllHooks finished\n");
 
@@ -1643,12 +1732,12 @@ bool SetAllHooks()
 
 
 	//extern FARPROC CallWriteConsoleW;
-	CallWriteConsoleW = static_cast<FARPROC>(GetOriginalAddress(
-		static_cast<LPVOID>(OnWriteConsoleW), HOOK_FN_ID(WriteConsoleW), nullptr, nullptr, gbPrepareDefaultTerminal));
+	CallWriteConsoleW = reinterpret_cast<FARPROC>(GetOriginalAddress(
+		reinterpret_cast<LPVOID>(OnWriteConsoleW), HOOK_FN_ID(WriteConsoleW), nullptr, nullptr, gbPrepareDefaultTerminal));
 
 	// extern GetConsoleWindow_T gfGetRealConsoleWindow; // from ConEmuCheck.cpp
-	gfGetRealConsoleWindow = static_cast<GetConsoleWindow_T>(GetOriginalAddress(
-		static_cast<LPVOID>(OnGetConsoleWindow), HOOK_FN_ID(GetConsoleWindow), nullptr, nullptr, gbPrepareDefaultTerminal));
+	gfGetRealConsoleWindow = reinterpret_cast<GetConsoleWindow_T>(GetOriginalAddress(
+		reinterpret_cast<LPVOID>(OnGetConsoleWindow), HOOK_FN_ID(GetConsoleWindow), nullptr, nullptr, gbPrepareDefaultTerminal));
 
 	DebugString(L"Functions prepared\n");
 
@@ -1680,6 +1769,10 @@ void UnsetAllHooks()
 	HLOGEND1();
 	}
 
+#if defined(_M_ARM64) || defined(__aarch64__)
+	if (gpHooks)
+		UpdateArm64Hooks(false);
+#else
 	// Some functions must be unhooked first
 	MH_STATUS status;
 	if (gpHooks)
@@ -1718,6 +1811,7 @@ void UnsetAllHooks()
 		g_mhDeinit = MH_Uninitialize();
 		HLOGEND1();
 	}
+#endif
 
 	#ifdef _DEBUG
 	DebugStringA("UnsetAllHooks finished\n");

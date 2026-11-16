@@ -32,7 +32,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "defines.h"
 
 #include <functional>
-#include <TlHelp32.h>
+#include <tlhelp32.h>
 
 #include "CmdLine.h"
 #include "MArray.h"

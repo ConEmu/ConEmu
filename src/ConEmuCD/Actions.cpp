@@ -377,7 +377,7 @@ int DoInjectRemote(const CEStr& asCmdArg, bool abDefTermOnly)
 		swprintf_c(szTitle, L"ConEmuC, PID=%u", GetCurrentProcessId());
 		swprintf_c(szDbgMsg, L"ConEmuC.X, PID=%u\nCmdLine parsing FAILED (%u)!\n%s",
 			GetCurrentProcessId(), nRemotePID,
-			asCmdArg);
+			asCmdArg.c_str());
 		LogString(szDbgMsg);
 		MessageBoxW(nullptr, szDbgMsg, szTitle, MB_SYSTEMMODAL);
 	}

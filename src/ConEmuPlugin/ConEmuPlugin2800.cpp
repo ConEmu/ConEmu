@@ -105,7 +105,7 @@ struct FarStandardFunctions *FSFW2800=NULL;
 static MArray<WindowInfo>* pwList = NULL;
 
 /* EXPORTS BEGIN */
-void WINAPI GetGlobalInfoW(struct GlobalInfo *Info)
+extern "C" void WINAPI GetGlobalInfoW(struct GlobalInfo *Info)
 {
 	_ASSERTE(Info->StructSize >= (size_t)((LPBYTE)(&Info->Instance) - (LPBYTE)(Info)));
 

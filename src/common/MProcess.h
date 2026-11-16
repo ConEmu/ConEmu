@@ -30,7 +30,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #pragma once
 
 #include "defines.h"
-#include <TlHelp32.h>
+#include <tlhelp32.h>
 
 bool GetProcessInfo(DWORD nPID, PROCESSENTRY32W& result);
 bool GetProcessInfo(LPCWSTR asExeName, PROCESSENTRY32W& result);
