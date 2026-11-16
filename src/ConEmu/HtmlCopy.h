@@ -95,7 +95,7 @@ protected:
 	size_t mn_TextStart, mn_TextEnd;
 	bool mb_Finalized, mb_ParOpened;
 	wchar_t szTemp[2000], szBack[64], szFore[64], szId[8];
-	wchar_t szBold[20], szItalic[20], szUnderline[20];
+	wchar_t szBold[20], szItalic[20], szUnderline[32];
 protected:
 	LPCWSTR FormatColor(COLORREF clr, wchar_t* rsBuf);;
 public:

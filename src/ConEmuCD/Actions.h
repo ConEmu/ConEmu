@@ -64,6 +64,7 @@ enum class ConEmuExecAction
 	OutType,    // print file contents with ANSI processing
 	StoreCWD,   // store current console work dir
 	DumpStruct, // dump file mapping contents
+	ConPty,    // host a child process through Windows pseudoconsole
 };
 
 int  DoExecAction(ConEmuExecAction eExecAction, LPCWSTR asCmdArg /* rest of cmdline */, MacroInstance& Inst);

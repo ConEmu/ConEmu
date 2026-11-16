@@ -271,7 +271,8 @@ void ArgGuiMacro(const CEStr& szArg, MacroInstance& inst)
 				default:
 					_ASSERTE(FALSE && "Should not get here");
 				}
-				gpLogSize->LogString(szLog);
+				if (gpLogSize)
+					gpLogSize->LogString(szLog);
 				if (pszID == pszEnd)
 					break;
 				pszID = pszEnd;

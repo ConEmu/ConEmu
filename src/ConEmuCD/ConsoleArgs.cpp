@@ -513,6 +513,12 @@ int ConsoleArgs::ParseCommandLine(LPCWSTR pszCmdLine, const ConsoleMainMode anWo
 			command_.Set(cmdLineRest);
 			break;
 		}
+		else if (szArg.IsSwitch(L"/PTY"))
+		{
+			eExecAction_ = ConEmuExecAction::ConPty;
+			command_.Set(cmdLineRest);
+			break;
+		}
 		else if (szArg.OneOfSwitches(L"/type", L"/t"))
 		{
 			eExecAction_ = ConEmuExecAction::OutType;
