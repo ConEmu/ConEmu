@@ -93,10 +93,8 @@ static TabPalette GetTabPalette()
 		return {DarkMode::Background, RGB(38, 38, 38), DarkMode::Control,
 			DarkMode::Text, DarkMode::Text, DarkMode::Text};
 
-	const auto accent = CDwmHelper::WindowsAccentColor();
-	const auto inactive = CDwmHelper::BlendColors(accent, RGB(255, 255, 255), 20);
-	const auto active = CDwmHelper::BlendColors(accent, RGB(0, 0, 0), 35);
-	return {accent, inactive, active, ContrastingText(inactive), ContrastingText(active), ContrastingText(accent)};
+	return {GetSysColor(COLOR_BTNFACE), GetSysColor(COLOR_BTNFACE), GetSysColor(COLOR_WINDOW),
+		GetSysColor(COLOR_BTNTEXT), GetSysColor(COLOR_WINDOWTEXT), GetSysColor(COLOR_BTNTEXT)};
 }
 
 static void PaintConsoleTabs(HWND tabs, HDC dc)

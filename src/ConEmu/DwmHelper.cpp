@@ -489,14 +489,6 @@ void CDwmHelper::ApplyPopupMenuTheme(HWND owner)
 	}
 }
 
-COLORREF CDwmHelper::WindowsAccentColor()
-{
-	DWORD color = 0;
-	if (ReadThemeDword(L"Software\\Microsoft\\Windows\\DWM", L"AccentColor", color))
-		return color & 0x00FFFFFF;
-	return GetSysColor(COLOR_HIGHLIGHT);
-}
-
 COLORREF CDwmHelper::BlendColors(COLORREF base, COLORREF tint, unsigned tintPercent)
 {
 	const auto blend = [tintPercent](unsigned a, unsigned b) {
