@@ -798,6 +798,7 @@ BEGIN
     CONTROL         "No zone check",cbShellNoZoneCheck,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,195,87,181,8
     CONTROL         "KeyBar RClick",cbKeyBarRClick,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,195,100,181,8
     CONTROL         "Disable Far flashing",cbDisableFarFlashing,"Button",BS_AUTO3STATE | WS_TABSTOP,9,87,181,8
+    CONTROL         "Wheel scrolls buffer when Far panels are hidden",cbFarWheelScrollback,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,9,218,365,12
     GROUPBOX        "Tab templates",gbFarTabTemplates,4,132,375,74
     RTEXT           "Panels:",stTabPanels,6,172,45,8
     EDITTEXT        tTabPanels,55,170,126,12,ES_AUTOHSCROLL
