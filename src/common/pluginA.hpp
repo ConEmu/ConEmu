@@ -1882,6 +1882,7 @@ enum FAR_EVENTS
 #ifdef __cplusplus
 extern "C" {
 #endif
+#ifndef CONEMU_INTERNAL_PLUGIN_EXPORTS
 // Exported Functions
 
 	void   WINAPI _export ClosePlugin(HANDLE hPlugin);
@@ -1912,6 +1913,7 @@ extern "C" {
 	int    WINAPI _export SetFindList(HANDLE hPlugin,const struct PluginPanelItem *PanelItem,int ItemsNumber);
 	void   WINAPI _export SetStartupInfo(const struct PluginStartupInfo *Info);
 
+#endif
 #ifdef __cplusplus
 };
 #endif

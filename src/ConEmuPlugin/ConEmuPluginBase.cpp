@@ -2782,6 +2782,15 @@ DWORD CPluginBase::MonitorThreadProcW(LPVOID lpParameter)
 		if (dwWait == WAIT_OBJECT_0)
 			break; // завершение плагина
 
+#if defined(CONEMU_ARM64_HOOKS)
+		// Some Far panel updates do not produce a console input notification on ARM64.
+		if (ghConEmuWndDC && IS_SYNCHRO_ALLOWED && gnSynchroCount == 0)
+		{
+			gbNeedPostReloadFarInfo = TRUE;
+			Plugin()->ExecuteSynchro();
+		}
+#endif
+
 		// Если FAR запущен в "невидимом" режиме и по истечении таймаута
 		// так и не подцепились к ConEmu - всплыть окошко консоли
 		if (lbStartedNoConEmu && ghConEmuWndDC == nullptr && FarHwnd != nullptr)
@@ -4058,7 +4067,9 @@ bool CPluginBase::ProcessCommand(DWORD nCmd, BOOL bReqMainThread, LPVOID pComman
 		}
 		// конец семафора
 
-		if (nCmd == CMD_LEFTCLKSYNC || nCmd == CMD_CLOSEQSEARCH)
+		// The console input hook signals ghConsoleInputEmpty. Without it,
+		// waiting here only delays the drag request.
+		if ((nCmd == CMD_LEFTCLKSYNC && ghHooksModule) || nCmd == CMD_CLOSEQSEARCH)
 		{
 			ResetEvent(ghConsoleInputEmpty);
 			gbWaitConsoleInputEmpty = TRUE;

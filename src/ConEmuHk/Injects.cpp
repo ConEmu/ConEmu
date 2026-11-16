@@ -171,8 +171,28 @@ static void ShowInjectsMsgBox(PROCESS_INFORMATION pi, const DWORD imageBits)
 // The handle must have the PROCESS_CREATE_THREAD, PROCESS_QUERY_INFORMATION, PROCESS_VM_OPERATION, PROCESS_VM_WRITE, and PROCESS_VM_READ
 // The function may start appropriate bitness of ConEmuC.exe with "/SETHOOKS=..." switch
 // If bitness matches, use WriteProcessMemory and SetThreadContext immediately
+#if defined(CONEMU_ARM64_HOOKS)
+bool IsNativeArm64Target(HANDLE process)
+{
+	using QueryProcessInfo = BOOL (WINAPI*)(HANDLE, PROCESS_INFORMATION_CLASS, void*, DWORD);
+	const auto query = reinterpret_cast<QueryProcessInfo>(
+		GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "GetProcessInformation"));
+	PROCESS_MACHINE_INFORMATION machine = {};
+	// x64 emulation on Windows on Arm does not use the WOW64 layer.
+	if (query && query(process, ProcessMachineTypeInfo, &machine, sizeof(machine))
+		&& machine.ProcessMachine == IMAGE_FILE_MACHINE_ARM64)
+		return true;
+	SetLastError(ERROR_NOT_SUPPORTED);
+	return false;
+}
+#endif
+
 CINJECTHK_EXIT_CODES InjectHooks(PROCESS_INFORMATION pi, const DWORD imageBits, BOOL abLogProcess, LPCWSTR asConEmuHkDir, HWND hConWnd)
 {
+#if defined(CONEMU_ARM64_HOOKS)
+	if (!IsNativeArm64Target(pi.hProcess))
+		return CIH_GeneralError;
+#endif
 	CINJECTHK_EXIT_CODES iRc = CIH_OK/*0*/;
 	wchar_t szDllDir[MAX_PATH*2];
 	_ASSERTE(ghOurModule!=nullptr);

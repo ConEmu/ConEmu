@@ -19,3 +19,6 @@ extern InjectsFnPtr gfLdrGetDllHandleByName;
 CINJECTHK_EXIT_CODES InjectHooks(PROCESS_INFORMATION pi, DWORD imageBits, BOOL abLogProcess, LPCWSTR asConEmuHkDir, HWND hConWnd);
 UINT_PTR GetLoadLibraryAddress();
 UINT_PTR GetLdrGetDllHandleByNameAddress();
+#if defined(CONEMU_ARM64_HOOKS)
+bool IsNativeArm64Target(HANDLE process);
+#endif

@@ -78,7 +78,7 @@ bool IsCmdInternalCommand(const wchar_t* cmd)
 {
 	if (!cmd || !*cmd || wcspbrk(cmd, L".\\/"))
 		return false;
-	auto* found = std::bsearch(cmd, CMD_INTERNAL_COMMANDS, countof(CMD_INTERNAL_COMMANDS), sizeof(wchar_t*),
+	auto* found = ::bsearch(cmd, CMD_INTERNAL_COMMANDS, countof(CMD_INTERNAL_COMMANDS), sizeof(wchar_t*),
 		[](const void* a, const void* b) -> int
 		{
 			const auto cmp = lstrcmpiW(static_cast<const wchar_t*>(a), *static_cast<const wchar_t* const*>(b));

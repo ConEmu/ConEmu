@@ -245,7 +245,7 @@ int CIconList::CreateTabIconInt(LPCWSTR asIconDescr, bool bAdmin, LPCWSTR asWork
 	int nIndex = 0;
 	bool bDirChanged = false;
 
-	if (!szLoadFile.Set(pszExpanded ? pszExpanded : asIconDescr))
+	if (!szLoadFile.Set(pszExpanded ? pszExpanded.c_str() : asIconDescr))
 	{
 		goto wrap;
 	}

@@ -282,6 +282,11 @@ typedef struct _CONSOLE_SELECTION_INFO
 
 // Default terminal hook module name
 #define CEDEFTERMDLLFORMAT  L"ConEmuHk%s.%02u%02u%02u%s.dll"
+#if defined(CONEMU_ARM64_HOOKS)
+#define CEDEFTERMHK_SUFFIX L"Arm64"
+#else
+#define CEDEFTERMHK_SUFFIX WIN3264TEST(L"", L"64")
+#endif
 #define CEDEFAULTTERMHOOK   L"ConEmuDefaultTerm.%u" // Если Event взведен - нужно загрузить хуки в процесс только для перехвата запуска консольных приложений
 #define CEDEFAULTTERMHOOKOK L"ConEmuDefaultTermOK.%u" // Взводится в ConEmuHk когда инициализация DefTerm началась (CEDEFAULTTERMHOOK больше не нужен)
 #define CEDEFAULTTERMBEGIN  L"ConEmuDefTermProc.%u" // Мутекс создается перед началом установки хуков, чтобы не дрались разные процессы-установщики

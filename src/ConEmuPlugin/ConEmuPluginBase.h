@@ -72,6 +72,8 @@ struct CEPanelInfo
 	const void* panelInfo;
 };
 
+extern "C" BOOL WINAPI DllMain(HANDLE, DWORD, LPVOID);
+
 class CPluginBase
 {
 protected:

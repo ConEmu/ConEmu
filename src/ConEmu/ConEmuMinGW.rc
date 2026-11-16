@@ -7,4 +7,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 
 #define CERC_IMAGES  1
 
+#ifndef IDI_SHIELD
+#define IDI_SHIELD 32518
+#endif
+
 #include "Externals.rc2"

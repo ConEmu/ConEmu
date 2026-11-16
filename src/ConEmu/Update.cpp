@@ -2204,7 +2204,7 @@ void CConEmuUpdate::LogCallback(const CEDownloadInfo* pError)
 	const CEStr pszText = pError->GetFormatted(false);
 	if (pszText)
 	{
-		const CEStr lsLog(L"Update: ", pszText);
+		const CEStr lsLog(L"Update: ", pszText.c_str());
 		gpConEmu->LogString(lsLog);
 	}
 }

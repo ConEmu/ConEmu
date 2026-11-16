@@ -141,7 +141,7 @@ int WINAPI _export GetMinFarVersionW(void)
 	return MAKEFARVERSION(2,0,1765);
 }
 
-void WINAPI _export GetPluginInfoWcmn(void *piv)
+extern "C" void WINAPI _export GetPluginInfoWcmn(void *piv)
 {
 	if (gFarVersion.dwBuild>=FAR_Y2_VER)
 		FUNC_Y2(GetPluginInfoW)(piv);
@@ -345,8 +345,8 @@ INT_PTR WINAPI ProcessSynchroEventW3(void*);
 #include "../common/SetExport.h"
 ExportFunc Far3Func[] =
 {
-	{"ExitFARW", ExitFARW, ExitFARW3},
-	{"ProcessSynchroEventW", ProcessSynchroEventW, ProcessSynchroEventW3},
+	{"ExitFARW", reinterpret_cast<void*>(ExitFARW), reinterpret_cast<void*>(ExitFARW3)},
+	{"ProcessSynchroEventW", reinterpret_cast<void*>(ProcessSynchroEventW), reinterpret_cast<void*>(ProcessSynchroEventW3)},
 	{NULL}
 };
 
@@ -459,7 +459,9 @@ BOOL CheckConEmu(BOOL abSilence/*=FALSE*/)
 	//nLastCheckConEmu = GetTickCount();
 	HMODULE hConEmu = GetModuleHandle
 	                  (
-#ifdef WIN64
+#if defined(_M_ARM64) || defined(__aarch64__)
+	                      L"ConEmu.arm64.dll"
+#elif defined(WIN64)
 	                      L"ConEmu.x64.dll"
 #else
 	                      L"ConEmu.dll"
@@ -563,7 +565,7 @@ void WINAPI _export SetStartupInfoW(void *aInfo)
 	StartPlugin(FALSE);
 }
 
-HANDLE WINAPI _export OpenW(const struct OpenInfo *Info)
+extern "C" HANDLE WINAPI _export OpenW(const struct OpenInfo *Info)
 {
 	HANDLE hResult = NULL;
 

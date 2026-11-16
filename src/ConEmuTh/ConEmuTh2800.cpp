@@ -658,6 +658,11 @@ void SetCurrentPanelItemW2800(BOOL abLeftPanel, INT_PTR anTopItem, INT_PTR anCur
 {
 	if (!InfoW2800) return;
 
+#if defined(_M_ARM64) || defined(__aarch64__)
+	// The synchro callback already runs on Far's main thread.
+	// Apply the position even when the LuaMacro plugin is unavailable.
+	SetCurrentPanelItemW2800Int(abLeftPanel, anTopItem, anCurItem);
+#else
 	wchar_t szMacro[200], szTop[65], szCur[65];
 	FSFW2800->itoa64(anTopItem, szTop, 10);
 	FSFW2800->itoa64(anCurItem, szCur, 10);
@@ -679,6 +684,7 @@ void SetCurrentPanelItemW2800(BOOL abLeftPanel, INT_PTR anTopItem, INT_PTR anCur
 	mcr.Flags = KMFLAGS_NOSENDKEYSTOPLUGINS;
 	mcr.SequenceText = szMacro;
 	InfoW2800->MacroControl(&guid_ConEmuTh, MCTL_SENDSTRING, 0, &mcr);
+#endif
 }
 
 void SetCurrentPanelItemW2800Int(BOOL abLeftPanel, INT_PTR anTopItem, INT_PTR anCurItem)

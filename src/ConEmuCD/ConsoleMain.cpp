@@ -1346,7 +1346,15 @@ int __stdcall ConsoleMain3(const ConsoleMainMode anWorkMode, LPCWSTR asCmdLine)
 
 					LogFunction(L"InjectHooks calling");
 					// Inject ConEmuHk.dll into started process space
-					iHookRc = InjectHooks(pi, gnImageBits, gbLogProcess, gsSelfPath, gState.realConWnd_);
+#if defined(CONEMU_ARM64_HOOKS)
+					if (!IsNativeArm64Target(pi.hProcess) && GetLastError() == ERROR_NOT_SUPPORTED)
+					{
+						LogFunction(L"Skipping native ARM64 injection for an emulated process");
+						iHookRc = CIH_OK;
+					}
+					else
+#endif
+						iHookRc = InjectHooks(pi, gnImageBits, gbLogProcess, gsSelfPath, gState.realConWnd_);
 				}
 
 				if (iHookRc != CIH_OK/*0*/)
@@ -1995,7 +2003,7 @@ int __stdcall ConsoleMain2(const ConsoleMainMode anWorkMode)
 }
 
 
-int WINAPI LogHooksFunction(const wchar_t* str)
+extern "C" int WINAPI LogHooksFunction(const wchar_t* str)
 {
 	if (!gpLogSize) return -1;
 	if (!str || !*str) return 0;
@@ -2316,7 +2324,7 @@ CEStr ParseConEmuSubst(LPCWSTR asCmd)
 		asCmd = pszCmdCopy;
 	}
 
-	CEStr pszExpand = ExpandEnvStr(pszCmdCopy ? pszCmdCopy : asCmd);
+	CEStr pszExpand = ExpandEnvStr(pszCmdCopy ? pszCmdCopy.c_str() : asCmd);
 	return pszExpand;
 }
 

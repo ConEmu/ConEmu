@@ -1369,9 +1369,12 @@ HRESULT CDragDrop::DropShellOp(IDataObject* pDataObject, DWORD* pdwEffect, STGME
 
 	if (!lbMultiDest)
 	{
-		int nCchLen = lstrlenW(pszDropPath)+3;
-		sfop->fop.pTo = new WCHAR[nCchLen];
-		swprintf_c((LPWSTR)sfop->fop.pTo, nCchLen/*#SECURELEN*/, _T("%s\\\0\0"), pszDropPath);
+		const auto pathLength = lstrlenW(pszDropPath);
+		auto* destination = new wchar_t[pathLength + 3]{};
+		lstrcpyW(destination, pszDropPath);
+		if (pathLength && destination[pathLength - 1] != L'\\')
+			destination[pathLength] = L'\\';
+		sfop->fop.pTo = destination;
 	}
 	else
 	{
@@ -1537,9 +1540,9 @@ DWORD CDragDrop::ShellOpThreadProc(LPVOID lpParameter)
 		}
 	}
 
-	if (sfop->fop.pTo) delete sfop->fop.pTo;
+	if (sfop->fop.pTo) delete[] sfop->fop.pTo;
 
-	if (sfop->fop.pFrom) delete sfop->fop.pFrom;
+	if (sfop->fop.pFrom) delete[] sfop->fop.pFrom;
 
 	delete sfop;
 	HANDLE hTh = nullptr;

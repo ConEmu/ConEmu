@@ -51,7 +51,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cstdint>
 #include <chrono>
 #include <tuple>
-#include <Windows.h>
+#include <windows.h>
 
 
 #define DEF_TERM_ALIVE_CHECK_TIMEOUT 750

@@ -188,7 +188,7 @@ VOID CALLBACK LdrDllNotification(ULONG NotificationReason, const LDR_DLL_NOTIFIC
 		if (PrepareNewModule(hModule, nullptr, szModule, TRUE, TRUE))
 		{
 			HookItem* ph = nullptr;
-			GetOriginalAddress(static_cast<LPVOID>(OnLoadLibraryW), HOOK_FN_ID(LoadLibraryW), nullptr, &ph, true);
+			GetOriginalAddress(reinterpret_cast<LPVOID>(OnLoadLibraryW), HOOK_FN_ID(LoadLibraryW), nullptr, &ph, true);
 			if (ph && ph->PostCallBack)
 			{
 				SETARGS1(&hModule,szModule);
