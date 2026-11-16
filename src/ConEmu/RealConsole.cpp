@@ -13238,18 +13238,18 @@ void CRealConsole::OnTitleChanged()
 		}
 	}
 
-	// заменил на GetProgress, т.к. он еще учитывает mn_PreWarningProgress
+	// GetProgress also accounts for pre-warning progress.
 	nNewProgress = GetProgress(nullptr);
 
-	if (isActive(false) && wcscmp(GetTitle(), mp_ConEmu->GetLastTitle(false)))
+	if (isActive(false))
 	{
-		// Для активной консоли - обновляем заголовок. Прогресс обновится там же
+		// The window caption may contain a template, so refresh it from the active console.
 		setLastShownProgress(nNewProgress);
 		mp_ConEmu->UpdateTitle();
 	}
 	else if (m_Progress.LastShownProgress != nNewProgress)
 	{
-		// Для НЕ активной консоли - уведомить главное окно, что у нас сменились проценты
+		// Inactive consoles can still change the progress displayed in the main window.
 		setLastShownProgress(nNewProgress);
 		mp_ConEmu->UpdateProgress();
 	}

@@ -54,7 +54,8 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	L"-Detached - start ConEmu without consoles.\r\n" \
 	L"-NoAutoClose - don't close ConEmu window automatically with last tab.\r\n" \
 	L"-Icon <file> - Take icon from file (exe, dll, ico).\r\n" \
-	L"-Title <title> - Set fixed(!) title for ConEmu window. You may use environment variables in <title>.\r\n" \
+	L"-Title <title> - Set a fixed ConEmu window title. Environment variables are supported.\r\n" \
+	L"   Use %s for the current title of the active console, e.g. -Title \"Cmder: %s\".\r\n" \
 	L"-Multi | -NoMulti - Enable or disable multiconsole features.\r\n" \
 	L"-Single - New console will be started in new tab of existing ConEmu.\r\n" \
 	L"-NoSingle - Force new ConEmu window even if single mode is selected in the Settings.\r\n" \

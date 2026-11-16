@@ -4752,16 +4752,42 @@ void CConEmuMain::CheckNeedUpdateTitle(LPCWSTR asRConTitle)
 	if (!asRConTitle)
 		return;
 
-	// Issue 1004: overflow of mn_MsgUpdateTitle when "/title" option was specified
+	// Templates refresh on console title changes and activation. Comparing a raw
+	// title with a formatted caption here would repeatedly post updates (gh-1004).
 	if (TitleTemplate[0] != 0)
 		return;
 
-	// Если в консоли заголовок не менялся, но он отличается от заголовка в ConEmu
+	// The console title has not changed, but the window caption may be out of date.
 	if (wcscmp(asRConTitle, GetLastTitle(false)))
 		UpdateTitle();
 }
 
-// !!!Warning!!! Никаких return. в конце функции вызывается необходимый CheckProcesses
+static LPCWSTR FindConsoleTitlePlaceholder(LPCWSTR text)
+{
+	for (auto percent = wcschr(text, L'%'); percent; percent = wcschr(percent + 1, L'%'))
+	{
+		const auto end = wcschr(percent + 1, L'%');
+		if (end && end != percent + 1)
+		{
+			// Preserve %NAME% references, including names beginning with s.
+			// Allow adjacent %s tokens unless %s% names a defined variable.
+			const bool adjacentTokens = (end == percent + 2) && (percent[1] == L's') && (end[1] == L's');
+			const bool variableName = std::all_of(percent + 1, end,
+				[](wchar_t ch) { return iswalnum(ch) || ch == L'_'; });
+			if ((variableName && !adjacentTokens)
+				|| GetEnvironmentVariableW(CEStr(percent + 1, end - percent - 1), nullptr, 0))
+			{
+				percent = end;
+				continue;
+			}
+		}
+
+		if (percent[1] == L's')
+			return percent;
+	}
+	return nullptr;
+}
+
 void CConEmuMain::UpdateTitle()
 {
 	if (GetCurrentThreadId() != mn_MainThreadId)
@@ -4770,39 +4796,44 @@ void CConEmuMain::UpdateTitle()
 		return;
 	}
 
-	LPCTSTR pszNewTitle = nullptr;
+	const auto placeholder = FindConsoleTitlePlaceholder(TitleTemplate);
+	CVConGuard vcon;
+	LPCWSTR consoleTitle = nullptr;
+	if ((!TitleTemplate[0] || placeholder) && (GetActiveVCon(&vcon) >= 0) && vcon->RCon())
+		consoleTitle = vcon->RCon()->GetTitle(placeholder == nullptr);
+	if (!consoleTitle || (placeholder && !*consoleTitle))
+		consoleTitle = GetDefaultTitle();
 
-	if (TitleTemplate[0] != 0)
+	if (placeholder)
 	{
-		DWORD n = ExpandEnvironmentStrings(TitleTemplate, Title, countof(Title));
-		if (n && (n < countof(Title)))
-			pszNewTitle = Title;
-		else
-			pszNewTitle = GetDefaultTitle();
+		std::wstring caption;
+		LPCWSTR part = TitleTemplate;
+		for (auto token = placeholder; token; token = FindConsoleTitlePlaceholder(part))
+		{
+			// Expand variables in the template text only.
+			if (token != part)
+				caption += ExpandEnvStr(CEStr(part, token - part)).c_str();
+			caption += consoleTitle;
+			part = token + 2;
+		}
+		if (*part)
+			caption += ExpandEnvStr(part).c_str();
+		lstrcpyn(Title, caption.c_str(), countof(Title));
+	}
+	else if (TitleTemplate[0])
+	{
+		const DWORD n = ExpandEnvironmentStrings(TitleTemplate, Title, countof(Title));
+		if (!n || (n >= countof(Title)))
+			lstrcpyn(Title, GetDefaultTitle(), countof(Title));
+	}
+	else if (lstrcmpi(Title, consoleTitle))
+	{
+		lstrcpyn(Title, consoleTitle, countof(Title));
 	}
 
-	if (!pszNewTitle)
-	{
-		CVConGuard VCon;
-		if ((GetActiveVCon(&VCon) >= 0) && VCon->RCon())
-			pszNewTitle = VCon->RCon()->GetTitle(true);
-	}
-
-	if (!pszNewTitle)
-	{
-		pszNewTitle = GetDefaultTitle();
-	}
-
-
-	if (pszNewTitle && (pszNewTitle != Title) && lstrcmpi(Title, pszNewTitle))
-		lstrcpyn(Title, pszNewTitle, countof(Title));
-
-
-	// SetTitle(ghWnd, psTitle) вызывается здесь
-	// Там же обновится L"[%i/%i] " если несколько консолей а табы отключены
+	// Apply the caption with progress and console numbering.
 	UpdateProgress(/*TRUE*/);
 	Icon.UpdateTitle();
-	// Под конец - проверить список процессов консоли
 	CheckProcesses();
 }
 
@@ -4825,7 +4856,7 @@ void CConEmuMain::UpdateProgress()
 
 	LPCWSTR psTitle = nullptr;
 	LPCWSTR pszFixTitle = GetLastTitle(true);
-	wchar_t MultiTitle[MAX_TITLE_SIZE+30];
+	wchar_t MultiTitle[countof(Title)+30];
 	MultiTitle[0] = 0;
 	short nProgress = -1;
 	bool bActiveHasProgress = FALSE;
