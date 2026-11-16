@@ -84,6 +84,9 @@
     <ClInclude Include="ConEmu\CustomFonts.h">
       <Filter>ConEmu</Filter>
     </ClInclude>
+    <ClInclude Include="ConEmu\DarkMode.h">
+      <Filter>ConEmu</Filter>
+    </ClInclude>
     <ClInclude Include="ConEmu\DebugMsgLog.h">
       <Filter>ConEmu</Filter>
     </ClInclude>
@@ -169,6 +172,9 @@
       <Filter>ConEmu</Filter>
     </ClInclude>
     <ClInclude Include="ConEmu\HtmlCopy.h">
+      <Filter>ConEmu</Filter>
+    </ClInclude>
+    <ClInclude Include="ConEmu\IatHook.h">
       <Filter>ConEmu</Filter>
     </ClInclude>
     <ClInclude Include="ConEmu\IconList.h">
@@ -852,6 +858,9 @@
       <Filter>ConEmu</Filter>
     </ClCompile>
     <ClCompile Include="ConEmu\CustomFonts.cpp">
+      <Filter>ConEmu</Filter>
+    </ClCompile>
+    <ClCompile Include="ConEmu\DarkMode.cpp">
       <Filter>ConEmu</Filter>
     </ClCompile>
     <ClCompile Include="ConEmu\DefaultTerm.cpp">

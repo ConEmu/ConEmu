@@ -296,6 +296,17 @@ bool CSetDlgButtons::ProcessButtonClick(HWND hDlg, WORD CB, BYTE uCheck)
 		case rbScrollbarAuto:
 			OnBtn_ScrollbarStyle(hDlg, CB, uCheck);
 			break;
+		case rbThemeDark:
+		case rbThemeLight:
+		case rbThemeAuto:
+			if (uCheck && global::g_darkModeSupported)
+			{
+				gpSet->nTheme = (CB == rbThemeDark) ? theme_Dark
+					: ((CB == rbThemeLight) ? theme_Light : theme_Auto);
+				if (ghWnd) SendMessage(ghWnd, WM_THEMECHANGED, 0, 0);
+				if (ghOpWnd) SendMessage(ghOpWnd, WM_THEMECHANGED, 0, 0);
+			}
+			break;
 		case cbScrollbarDynamic:
 			OnBtn_ScrollbarDynamic(hDlg, CB, uCheck);
 			break;

@@ -38,7 +38,8 @@ public:
 	CToolTip();
 	virtual ~CToolTip();
 public:
-	void ShowTip(HWND ahOwner, HWND ahControl, LPCWSTR asText, BOOL abBalloon, POINT pt, HINSTANCE hInstance = NULL/*g_hInstance*/);
+	void ShowTip(HWND ahOwner, HWND ahControl, LPCWSTR asText, BOOL abBalloon, POINT pt, HINSTANCE hInstance = NULL/*g_hInstance*/,
+		void (*applyTheme)(HWND) = nullptr);
 	void HideTip();
 	//virtual bool OnMenuSelected(HMENU hMenu, WORD nID, WORD nFlags) { return false; };
 private:

@@ -801,11 +801,28 @@ LRESULT CConEmuChild::BackWndProc(HWND hWnd, UINT messg, WPARAM wParam, LPARAM l
 			gVConBkMap.Set(hWnd, pVCon);
 		if (const auto theme = gpConEmu->opt.WindowTheme.GetStr())
 			gpConEmu->SetWindowTheme(hWnd, theme, nullptr);
+		else if (global::g_darkModeSupported)
+		{
+			AllowDarkModeForWindow(hWnd, global::g_darkModeEnabled);
+			SetPropW(hWnd, L"ConEmu.DarkScrollBar", reinterpret_cast<HANDLE>(global::g_darkModeEnabled ? 2 : 1));
+			gpConEmu->SetWindowTheme(hWnd, global::g_darkModeEnabled ? L"DarkMode_Explorer" : nullptr, nullptr);
+		}
 	}
 	else if (hWnd != ghBkInDestroing)
 	{
 		if (!gVConBkMap.Get(hWnd, &pVCon) || !guard.Attach(pVCon))
 			pVCon = nullptr;
+	}
+
+	if (messg == WM_THEMECHANGED && global::g_darkModeSupported && !gpConEmu->opt.WindowTheme.GetStr())
+	{
+		const HANDLE state = reinterpret_cast<HANDLE>(global::g_darkModeEnabled ? 2 : 1);
+		if (GetPropW(hWnd, L"ConEmu.DarkScrollBar") != state)
+		{
+			SetPropW(hWnd, L"ConEmu.DarkScrollBar", state);
+			AllowDarkModeForWindow(hWnd, global::g_darkModeEnabled);
+			gpConEmu->SetWindowTheme(hWnd, global::g_darkModeEnabled ? L"DarkMode_Explorer" : nullptr, nullptr);
+		}
 	}
 
 	if (messg == WM_SYSCHAR)

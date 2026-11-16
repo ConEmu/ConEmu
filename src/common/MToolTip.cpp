@@ -72,7 +72,7 @@ CToolTip::~CToolTip()
 		mpsz_LastTip = NULL;
 	}
 }
-void CToolTip::ShowTip(HWND ahOwner, HWND ahControl, LPCWSTR asText, BOOL abBalloon, POINT pt, HINSTANCE hInstance)
+void CToolTip::ShowTip(HWND ahOwner, HWND ahControl, LPCWSTR asText, BOOL abBalloon, POINT pt, HINSTANCE hInstance, void (*applyTheme)(HWND))
 {
 	HideTip();
 
@@ -143,6 +143,7 @@ void CToolTip::ShowTip(HWND ahOwner, HWND ahControl, LPCWSTR asText, BOOL abBall
 		return;
 	}
 
+	if (applyTheme) applyTheme(hTip);
 	pti->lpszText = mpsz_LastTip;
 
 	SendMessage(hTip, TTM_UPDATETIPTEXT, 0, reinterpret_cast<LPARAM>(pti));

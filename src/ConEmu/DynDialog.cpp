@@ -31,10 +31,13 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define SHOWDEBUGSTR
 
 #include "Header.h"
+#include <commctrl.h>
 
 #include "../common/CEStr.h"
+#include "ConEmu.h"
 #include "DynDialog.h"
 #include "LngRc.h"
+#include "OptionsClass.h"
 
 #if defined(_DEBUG)
 #include "OptionsFast.h"
@@ -148,6 +151,54 @@ CDynDialog* CDynDialog::GetDlgClass(HWND hwndDlg)
 	return pDlg;
 }
 
+static void PaintDialogIcon(HWND control, HDC dc)
+{
+	RECT bounds = {};
+	GetClientRect(control, &bounds);
+	const auto brush = reinterpret_cast<HBRUSH>(SendMessage(GetParent(control), WM_CTLCOLORSTATIC,
+		reinterpret_cast<WPARAM>(dc), reinterpret_cast<LPARAM>(control)));
+	FillRect(dc, &bounds, brush ? brush : GetSysColorBrush(COLOR_3DFACE));
+
+	// Composite the original icon directly onto the dialog background.
+	if (const auto icon = reinterpret_cast<HICON>(SendMessage(control, STM_GETICON, 0, 0)))
+		DrawIconEx(dc, 0, 0, icon, bounds.right, bounds.bottom, 0, nullptr, DI_NORMAL);
+}
+
+static LRESULT CALLBACK DialogIconProc(HWND control, UINT message, WPARAM wParam, LPARAM lParam,
+	UINT_PTR subclassId, DWORD_PTR)
+{
+	switch (message)
+	{
+	case WM_ERASEBKGND:
+		return TRUE;
+	case WM_PAINT:
+	{
+		PAINTSTRUCT paint = {};
+		if (const HDC dc = BeginPaint(control, &paint))
+			PaintDialogIcon(control, dc);
+		EndPaint(control, &paint);
+		return 0;
+	}
+	case WM_PRINTCLIENT:
+		PaintDialogIcon(control, reinterpret_cast<HDC>(wParam));
+		return 0;
+	case WM_NCDESTROY:
+		RemoveWindowSubclass(control, DialogIconProc, subclassId);
+		break;
+	}
+	return DefSubclassProc(control, message, wParam, lParam);
+}
+
+static BOOL CALLBACK ApplyDialogIconTheme(HWND control, LPARAM)
+{
+	wchar_t className[16] = {};
+	GetClassNameW(control, className, countof(className));
+	if (lstrcmpiW(className, L"Static") == 0
+		&& (GetWindowLongPtr(control, GWL_STYLE) & SS_TYPEMASK) == SS_ICON)
+		SetWindowSubclass(control, DialogIconProc, 0, 0);
+	return TRUE;
+}
+
 INT_PTR /*CALLBACK*/ CDynDialog::DynDialogBox(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	INT_PTR iRc = 0;
@@ -170,6 +221,34 @@ INT_PTR /*CALLBACK*/ CDynDialog::DynDialogBox(HWND hwndDlg, UINT uMsg, WPARAM wP
 	if (pDlg && pDlg->mp_DlgProc)
 	{
 		iRc = pDlg->mp_DlgProc(hwndDlg, uMsg, wParam, lParam);
+	}
+
+	// Settings pages already handle their own colors, including palette previews.
+	if (pDlg && gpConEmu && pDlg->mn_DlgId != IDD_SETTINGS
+		&& (pDlg->mn_DlgId == IDD_SPG_APPDISTINCT2 || !(GetWindowLongPtr(hwndDlg, GWL_STYLE) & WS_CHILD)))
+	{
+		switch (uMsg)
+		{
+		case WM_INITDIALOG:
+			if (IsWindow(hwndDlg) && CDwmHelper::IsWindowsDarkMode())
+			{
+				CSettings::ApplySettingsTheme(hwndDlg);
+				if (pDlg->mn_DlgId == IDD_SPG_APPDISTINCT2)
+					gpConEmu->SetWindowTheme(hwndDlg,
+						gOSVer.dwBuildNumber >= 26300 ? L"DarkMode_DarkTheme" : L"DarkMode_Explorer", nullptr);
+				EnumChildWindows(hwndDlg, ApplyDialogIconTheme, 0);
+			}
+			break;
+		case WM_CTLCOLORDLG:
+		case WM_CTLCOLORSTATIC:
+		case WM_CTLCOLOREDIT:
+		case WM_CTLCOLORLISTBOX:
+		case WM_CTLCOLORBTN:
+		case WM_CTLCOLORSCROLLBAR:
+			if (!iRc)
+				iRc = CSettings::SettingsThemeBrush(uMsg, reinterpret_cast<HDC>(wParam), reinterpret_cast<HWND>(lParam));
+			break;
+		}
 	}
 
 	if (uMsg == WM_DESTROY)

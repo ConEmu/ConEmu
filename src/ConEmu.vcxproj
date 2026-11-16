@@ -338,6 +338,7 @@
     <ClInclude Include="ConEmu\ConfirmDlg.h" />
     <ClInclude Include="ConEmu\CreateProcess.h" />
     <ClInclude Include="ConEmu\CustomFonts.h" />
+    <ClInclude Include="ConEmu\DarkMode.h" />
     <ClInclude Include="ConEmu\DebugMsgLog.h" />
     <ClInclude Include="ConEmu\DefaultTerm.h" />
     <ClInclude Include="ConEmu\DlgItemHelper.h" />
@@ -367,6 +368,7 @@
     <ClInclude Include="ConEmu\HotkeyList.h" />
     <ClInclude Include="ConEmu\Hotkeys.h" />
     <ClInclude Include="ConEmu\HtmlCopy.h" />
+    <ClInclude Include="ConEmu\IatHook.h" />
     <ClInclude Include="ConEmu\IconList.h" />
     <ClInclude Include="ConEmu\ImgButton.h" />
     <ClInclude Include="ConEmu\Inside.h" />
@@ -595,6 +597,7 @@
     <ClCompile Include="ConEmu\ConfirmDlg.cpp" />
     <ClCompile Include="ConEmu\CreateProcess.cpp" />
     <ClCompile Include="ConEmu\CustomFonts.cpp" />
+    <ClCompile Include="ConEmu\DarkMode.cpp" />
     <ClCompile Include="ConEmu\DefaultTerm.cpp" />
     <ClCompile Include="ConEmu\DlgItemHelper.cpp" />
     <ClCompile Include="ConEmu\DontEnable.cpp" />

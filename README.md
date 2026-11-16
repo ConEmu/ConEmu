@@ -79,6 +79,14 @@ Read [Installation wiki](https://conemu.github.io/en/Installation.html)
 about release stages, distro packets, some warnings and much more...
 
 
+## Windows dark mode
+
+On supported Windows 10 and 11 versions, ConEmu can follow Windows app mode or
+use a Dark or Light override in **Settings > Appearance**. High contrast uses
+the Windows colors. See [ConEmuDark by 59de44955ebd](https://github.com/ConEmu/ConEmu/pull/2604)
+for the original main window, Settings and About screenshots, and
+[Sim-md's Windows theming](https://github.com/ConEmu/ConEmu/pull/2643).
+
 ## Building from sources
 https://github.com/Maximus5/ConEmu/blob/master/src/HowToBuild.md
 
