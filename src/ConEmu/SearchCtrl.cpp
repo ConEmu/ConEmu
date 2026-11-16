@@ -211,6 +211,11 @@ static LRESULT EditIconHintPaint(HWND hEditCtrl, CEIconHintInfo* p, UINT Msg = W
 
 			// Paint background
 			HBRUSH hBr = GetSysColorBrush(COLOR_WINDOW);
+			const int controlId = GetDlgCtrlID(hEditCtrl);
+			const auto themedBrush = (controlId == tAboutSearch || (ghOpWnd && IsChild(ghOpWnd, hEditCtrl)))
+				? CSettings::SettingsThemeBrush(WM_CTLCOLOREDIT, hdc, hEditCtrl) : 0;
+			if (themedBrush)
+				hBr = reinterpret_cast<HBRUSH>(themedBrush);
 			RECT rcFill = rect;
 			// Draw only icon?
 			if (!bDrawHint)
@@ -219,6 +224,7 @@ static LRESULT EditIconHintPaint(HWND hEditCtrl, CEIconHintInfo* p, UINT Msg = W
 				rcFill.left = rcFill.right - (iw + CE_ICON_SPACING);
 			}
 			FillRect(hdc, &rcFill, hBr);
+			SetBkMode(hdc, TRANSPARENT);
 
 			// Cut initial margins
 			rect.left  += LOWORD(p->nMargins);
@@ -242,7 +248,7 @@ static LRESULT EditIconHintPaint(HWND hEditCtrl, CEIconHintInfo* p, UINT Msg = W
 				rect.bottom--;
 				HFONT hOldFont = (HFONT)SelectObject(hdc, dh.hFont);
 				COLORREF OldColor = GetTextColor(hdc);
-				SetTextColor(hdc, p->clrHint);
+				SetTextColor(hdc, themedBrush ? RGB(175, 183, 191) : p->clrHint);
 				DrawText(hdc, p->sHint, -1, &rect, DT_LEFT|DT_SINGLELINE|DT_EDITCONTROL|DT_VCENTER);
 				SetTextColor(hdc, OldColor);
 				SelectObject(hdc, hOldFont);

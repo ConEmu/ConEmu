@@ -1392,6 +1392,7 @@ int CConEmuMenu::trackPopupMenu(TrackMenuPlace place, HMENU hMenu, UINT uFlags, 
 	swprintf_c(szInfo, L"TrackPopupMenuEx started, place=%i, flags=x%08X, {%i,%i}", place, uFlags, x, y);
 	LogString(szInfo);
 
+	gpConEmu->ApplyPopupMenuTheme(hWnd);
 	SetLastError(0);
 	int cmd = TrackPopupMenuEx(hMenu, uFlags, x, y, hWnd, &ex);
 

@@ -13285,6 +13285,14 @@ LRESULT CConEmuMain::WndProc(HWND hWnd, UINT messg, WPARAM wParam, LPARAM lParam
 			}
 		} break;
 
+		case WM_THEMECHANGED:
+		case WM_SYSCOLORCHANGE:
+		case WM_DWMCOLORIZATIONCOLORCHANGED:
+			if (mp_TabBar)
+				mp_TabBar->Invalidate();
+			result = ::DefWindowProc(hWnd, messg, wParam, lParam);
+			break;
+
 		case WM_SETTINGCHANGE:
 		{
 			const wchar_t* change_verb = nullptr;
@@ -13307,6 +13315,8 @@ LRESULT CConEmuMain::WndProc(HWND hWnd, UINT messg, WPARAM wParam, LPARAM lParam
 				ReloadMonitorInfo();
 			}
 			result = ::DefWindowProc(hWnd, messg, wParam, lParam);
+			if (mp_TabBar)
+				mp_TabBar->Invalidate();
 			if (wParam == SPI_SETWORKAREA)
 			{
 				auto wm = GetWindowMode();

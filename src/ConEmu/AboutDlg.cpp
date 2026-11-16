@@ -229,6 +229,10 @@ INT_PTR WINAPI ConEmuAbout::aboutProc(HWND hDlg, UINT messg, WPARAM wParam, LPAR
 		}
 
 		case WM_CTLCOLORSTATIC:
+			if (const auto brush = CSettings::SettingsThemeBrush(messg,
+				reinterpret_cast<HDC>(wParam), reinterpret_cast<HWND>(lParam),
+				GetDlgCtrlID(reinterpret_cast<HWND>(lParam)) == stConEmuUrl))
+				return brush;
 			if (GetWindowLongPtr(reinterpret_cast<HWND>(lParam), GWLP_ID) == stConEmuUrl)
 			{
 				SetTextColor(reinterpret_cast<HDC>(wParam), GetSysColor(COLOR_HOTLIGHT));
