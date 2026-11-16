@@ -71,13 +71,23 @@ try {
 
     $projects = @('*.vcxproj', '*.vcxproj.filters', '*.sln')
     Invoke-Git diff --exit-code HEAD -- @projects
+    # master still uses the old Premake flags DSL. daily uses the current DSL.
+    $legacyGenerator = (Get-Content -Raw premake5.lua) -match 'flags\s*\{\s*"MultiProcessorCompile"'
     if (-not $PremakePath) {
         $temp = Join-Path ([System.IO.Path]::GetTempPath()) ('conemu-premake-' + [guid]::NewGuid())
         New-Item -ItemType Directory -Path $temp | Out-Null
         $archive = Join-Path $temp 'premake.zip'
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/premake/premake-core/releases/download/v5.0.0-alpha15/premake-5.0.0-alpha15-windows.zip' -OutFile $archive
-        if ((Get-FileHash -Algorithm SHA256 -LiteralPath $archive).Hash -ne 'A8B9FC87EC06B8FA52587F62BE2574BF151C5FACADBAD99DB31B7D4CE6EF1EAB') {
+        if ($legacyGenerator) {
+            $version = '5.0.0-alpha15'
+            $sha256 = 'A8B9FC87EC06B8FA52587F62BE2574BF151C5FACADBAD99DB31B7D4CE6EF1EAB'
+        } else {
+            $version = '5.0.0'
+            $sha256 = '15E63506EED5DFD526B96C8E957A7FEFF2BE6CFE70F46E353BFE4813B82E2FDC'
+        }
+        $url = "https://github.com/premake/premake-core/releases/download/v$version/premake-$version-windows.zip"
+        Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $archive
+        if ((Get-FileHash -Algorithm SHA256 -LiteralPath $archive).Hash -ne $sha256) {
             throw 'Premake archive checksum mismatch.'
         }
         Expand-Archive -LiteralPath $archive -DestinationPath $temp
@@ -87,9 +97,11 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Premake generation failed.' }
 
     # Ignore the equivalent header spelling that differs in the VS2019 solution.
-    $solution = Join-Path $root 'src/CE.sln'
-    $content = [IO.File]::ReadAllText($solution).Replace('# Visual Studio Version 16', '# Visual Studio 16')
-    [IO.File]::WriteAllText($solution, $content, [Text.UTF8Encoding]::new($true))
+    if ($legacyGenerator) {
+        $solution = Join-Path $root 'src/CE.sln'
+        $content = [IO.File]::ReadAllText($solution).Replace('# Visual Studio Version 16', '# Visual Studio 16')
+        [IO.File]::WriteAllText($solution, $content, [Text.UTF8Encoding]::new($true))
+    }
     Invoke-Git diff --exit-code HEAD -- @projects
     Write-Output 'Contribution and VS2019 project generation checks passed.'
 } finally {
