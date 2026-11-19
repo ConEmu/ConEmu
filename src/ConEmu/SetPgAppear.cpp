@@ -56,6 +56,12 @@ LRESULT CSetPgAppear::OnInitDialog(HWND hDlg, bool abInitial)
 	SetDlgItemInt(hDlg, tHideCaptionAlwaysDelay, gpSet->nHideCaptionAlwaysDelay, FALSE);
 	SetDlgItemInt(hDlg, tHideCaptionAlwaysDissapear, gpSet->nHideCaptionAlwaysDisappear, FALSE);
 
+	const WORD themeButton = gpSet->nTheme == theme_Dark ? rbThemeDark
+		: (gpSet->nTheme == theme_Light ? rbThemeLight : rbThemeAuto);
+	checkRadioButton(hDlg, rbThemeDark, rbThemeAuto, themeButton);
+	for (const WORD id : {gbTheme, rbThemeDark, rbThemeLight, rbThemeAuto})
+		enableDlgItem(hDlg, id, global::g_darkModeSupported);
+
 	checkDlgButton(hDlg, cbEnhanceGraphics, gpSet->isEnhanceGraphics);
 
 	//checkDlgButton(hDlg, cbEnhanceButtons, gpSet->isEnhanceButtons);

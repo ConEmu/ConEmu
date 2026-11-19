@@ -33,6 +33,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "../common/defines.h"
 #include <commctrl.h>
 #include "Header.h"
+#include "DwmHelper.h"
 #include "ToolImg.h"
 
 
@@ -190,6 +191,30 @@ CToolImg* CToolImg::CreateDonateButton()
 		_ASSERTE(FALSE && "Resource loading failed?");
 		#endif
 		SafeDelete(p);
+	}
+	if (p && CDwmHelper::IsWindowsDarkMode())
+	{
+		DIBSECTION bitmap = {};
+		if (GetObject(p->mh_Bmp, sizeof(bitmap), &bitmap) == sizeof(bitmap)
+			&& bitmap.dsBm.bmBitsPixel == 32 && bitmap.dsBm.bmBits)
+		{
+			// Preserve the original silhouette and shading in the premultiplied sprite.
+			auto row = static_cast<BYTE*>(bitmap.dsBm.bmBits);
+			for (LONG y = 0; y < bitmap.dsBm.bmHeight; ++y, row += bitmap.dsBm.bmWidthBytes)
+			{
+				auto pixels = reinterpret_cast<RGBQUAD*>(row);
+				for (LONG x = 0; x < bitmap.dsBm.bmWidth; ++x)
+				{
+					auto& pixel = pixels[x];
+					const int alpha = pixel.rgbReserved;
+					const int luminance = (pixel.rgbRed * 54 + pixel.rgbGreen * 183 + pixel.rgbBlue * 19) / 256;
+					const int shade = (alpha * 36 + std::max(0, alpha - luminance) * 210) / 255;
+					pixel.rgbRed = static_cast<BYTE>(shade);
+					pixel.rgbGreen = static_cast<BYTE>(shade);
+					pixel.rgbBlue = static_cast<BYTE>(shade);
+				}
+			}
+		}
 	}
 	return p;
 }
@@ -434,6 +459,20 @@ bool CToolImg::GetSizeForHeight(int nPreferHeight, int& nDispW, int& nDispH)
 	}
 
 	return (nDispH > 0);
+}
+
+bool CToolImg::PaintButtonTransparent(int iBtn, HDC dc, int x, int y) const
+{
+	// Toolbar bitmaps are a uniform horizontal strip. GetBitmap releases the
+	// construction DC, so use a temporary source DC for custom drawing.
+	if (!mh_Bmp || iBtn < 0 || iBtn >= mn_BtnCount) return false;
+	HDC source = CreateCompatibleDC(dc);
+	if (!source) return false;
+	HGDIOBJ old = SelectObject(source, mh_Bmp);
+	const bool result = GdiTransparentBlt(dc, x, y, mn_BtnWidth, mn_BtnHeight,
+		source, iBtn * mn_BtnWidth, 0, mn_BtnWidth, mn_BtnHeight, mcr_Background) != FALSE;
+	SelectObject(source, old); DeleteDC(source);
+	return result;
 }
 
 bool CToolImg::PaintButton(int iBtn, HDC hdcDst, const int nDstX, const int nDstY, const int nDstWidth, const int nDstHeight) const

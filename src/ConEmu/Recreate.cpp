@@ -433,6 +433,12 @@ INT_PTR CRecreateDlg::OnCtlColorStatic(HWND hDlg, UINT messg, WPARAM wParam, LPA
 {
 	if (GetDlgItem(hDlg, IDC_WARNING) == (HWND)lParam)
 	{
+		const auto dc = reinterpret_cast<HDC>(wParam);
+		if (const auto brush = CSettings::SettingsThemeBrush(messg, dc, reinterpret_cast<HWND>(lParam)))
+		{
+			SetTextColor(dc, RGB(255, 135, 135));
+			return brush;
+		}
 		SetTextColor((HDC)wParam, 255);
 		HBRUSH hBrush = GetSysColorBrush(COLOR_3DFACE);
 		SetBkMode((HDC)wParam, TRANSPARENT);

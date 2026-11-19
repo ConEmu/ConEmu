@@ -39,6 +39,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "Header.h"
 #include "TabBar.h"
 #include "TabCtrlBase.h"
+#include "DarkMode.h"
 #include "Options.h"
 #include "OptionsClass.h"
 #include "ConEmu.h"
@@ -169,6 +170,7 @@ void CTabPanelBase::InitTooltips(HWND hParent)
 									CW_USEDEFAULT, CW_USEDEFAULT,
 									hParent, nullptr,
 									g_hInstance, nullptr);
+		DarkMode::ApplyTooltip(mh_TabTip);
 		SetWindowPos(mh_TabTip, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
 	}
 
@@ -180,6 +182,7 @@ void CTabPanelBase::InitTooltips(HWND hParent)
 		                            CW_USEDEFAULT, CW_USEDEFAULT,
 		                            hParent, nullptr,
 		                            g_hInstance, nullptr);
+		DarkMode::ApplyTooltip(mh_Balloon);
 		SetWindowPos(mh_Balloon, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
 		// Set up tool information.
 		// In this case, the "tool" is the entire parent window.

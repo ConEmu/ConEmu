@@ -590,6 +590,7 @@ void Settings::InitSettings()
 //------------------------------------------------------------------------
 ///| Default settings |///////////////////////////////////////////////////
 //------------------------------------------------------------------------
+	nTheme = theme_Auto;
 	isShowBgImage = 0;
 	wcscpy_c(sBgImage, L"c:\\back.bmp");
 	bgImageDarker = 255; // 0x46;
@@ -773,6 +774,7 @@ void Settings::InitSettings()
 	isStatusColumnHidden[csi_Time] = true;
 
 	isTabs = 1; nTabsLocation = 0; isTabIcons = true; isOneTabPerGroup = false;
+	isTabsUseWindowsAccent = false;
 	bActivateSplitMouseOver = 1; // 1 - always, 2 - Regarding Windows settings (Active window tracking)
 	isTabSelf = true; isTabRecent = true; isTabLazy = true;
 	nTabFlashChanged = 8;
@@ -2882,6 +2884,7 @@ void Settings::LoadSettings(bool& rbNeedCreateVanilla, const SettingsStorage* ap
 		//reg->Load(L"GUIpb", isGUIpb);
 		reg->Load(L"Tabs", isTabs);
 		reg->Load(L"TabsLocation", nTabsLocation);
+		reg->Load(L"TabsUseWindowsAccent", isTabsUseWindowsAccent);
 		reg->Load(L"TabIcons", isTabIcons);
 		reg->Load(L"OneTabPerGroup", isOneTabPerGroup);
 		reg->Load(L"ActivateSplitMouseOver", bActivateSplitMouseOver); MinMax(bActivateSplitMouseOver, 2);
@@ -3026,6 +3029,9 @@ void Settings::LoadSettings(bool& rbNeedCreateVanilla, const SettingsStorage* ap
 		reg->Load(L"Update.DownloadPath", &UpdSet.szUpdateDownloadPath);
 		reg->Load(L"Update.LeavePackages", UpdSet.isUpdateLeavePackages);
 		reg->Load(L"Update.PostUpdateCmd", &UpdSet.szUpdatePostUpdateCmd);
+
+		reg->Load(L"Theme", nTheme);
+		if (nTheme > theme_Light) nTheme = theme_Auto;
 
 		/* *** Notification *** */
 		reg->Load(L"Notification.StopBuzzingDate", StopBuzzingDate, countof(StopBuzzingDate));
@@ -3844,6 +3850,7 @@ BOOL Settings::SaveSettings(BOOL abSilent /*= FALSE*/, const SettingsStorage* ap
 		SaveStatusSettings(reg);
 		reg->Save(L"Tabs", isTabs);
 		reg->Save(L"TabsLocation", nTabsLocation);
+		reg->Save(L"TabsUseWindowsAccent", isTabsUseWindowsAccent);
 		reg->Save(L"TabIcons", isTabIcons);
 		reg->Save(L"OneTabPerGroup", isOneTabPerGroup);
 		reg->Save(L"ActivateSplitMouseOver", bActivateSplitMouseOver);
@@ -3942,6 +3949,7 @@ BOOL Settings::SaveSettings(BOOL abSilent /*= FALSE*/, const SettingsStorage* ap
 		reg->Save(L"Update.DownloadPath", UpdSet.szUpdateDownloadPath);
 		reg->Save(L"Update.LeavePackages", UpdSet.isUpdateLeavePackages);
 		reg->Save(L"Update.PostUpdateCmd", UpdSet.szUpdatePostUpdateCmd);
+		reg->Save(L"Theme", nTheme);
 
 		/* Done */
 		reg->CloseKey();

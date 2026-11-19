@@ -504,6 +504,10 @@
 #define cbComspecTest                   2162
 #define gbFeatureMisc                   2163
 #define gbFeatureAppear                 2164
+#define gbTheme                         3113
+#define rbThemeDark                     3114
+#define rbThemeLight                    3115
+#define rbThemeAuto                     3116
 #define gbFeatureCaption                2165
 #define gbFeatureClipboard              2166
 #define cbClipConfirmEnter              2171
@@ -771,6 +775,7 @@
 #define tInsideSyncDir                  2479
 #define cbNumberInCaption               2480
 #define cbTabsLocationBottom            2481
+#define cbTabsUseWindowsAccent          3117
 #define rbTabsLocationTop               2482
 #define rbTabsLocationBottom            2483
 #define vkGlobalRestore                 2484
@@ -1360,7 +1365,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        248
 #define _APS_NEXT_COMMAND_VALUE         40010
-#define _APS_NEXT_CONTROL_VALUE         3113
+#define _APS_NEXT_CONTROL_VALUE         3118
 #define _APS_NEXT_SYMED_VALUE           130
 #endif
 #endif
