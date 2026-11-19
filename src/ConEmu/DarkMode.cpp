@@ -25,6 +25,22 @@ bool IsClass(HWND window, LPCWSTR expected)
 	return lstrcmpi(name, expected) == 0;
 }
 
+constexpr int FocusInset = 3;
+constexpr int FocusTextGap = 2;
+
+RECT FocusTextBounds(RECT content, const RECT& focus)
+{
+	content.left = std::max(content.left, focus.left + FocusTextGap);
+	content.right = std::min(content.right, focus.right - FocusTextGap);
+	return content;
+}
+
+void PaintFocusRect(HDC dc, const RECT& bounds)
+{
+	if (!IsRectEmpty(&bounds))
+		DrawFocusRect(dc, &bounds);
+}
+
 void PaintButton(HWND window, HDC dc)
 {
 	const int saved = SaveDC(dc);
@@ -93,13 +109,27 @@ void PaintButton(HWND window, HDC dc)
 		if (style & BS_LEFTTEXT) label.right -= unit + 5;
 		else label.left += unit + 5;
 	}
-	UINT flags = DT_VCENTER | ((style & BS_MULTILINE) ? DT_WORDBREAK : DT_SINGLELINE);
+	RECT focus = rc;
+	if (!group)
+	{
+		InflateRect(&focus, -FocusInset, 0);
+		if (!push)
+		{
+			// Keep the frame in the label area, clear of the checkbox or radio glyph.
+			if (style & BS_LEFTTEXT)
+				focus.right = label.right + FocusInset;
+			else
+				focus.left = label.left - FocusInset;
+		}
+		label = FocusTextBounds(label, focus);
+	}
+	UINT flags = DT_VCENTER | ((style & BS_MULTILINE) ? DT_WORDBREAK : DT_SINGLELINE | DT_END_ELLIPSIS);
 	if (push) flags |= DT_CENTER;
 	if (SendMessage(window, WM_QUERYUISTATE, 0, 0) & UISF_HIDEACCEL) flags |= DT_HIDEPREFIX;
 	DrawText(dc, text, -1, &label, flags);
 	if (!group && GetFocus() == window && !(SendMessage(window, WM_QUERYUISTATE, 0, 0) & UISF_HIDEFOCUS))
 	{
-		RECT focus = push ? rc : label; InflateRect(&focus, -3, -3); DrawFocusRect(dc, &focus);
+		PaintFocusRect(dc, focus);
 	}
 	SelectObject(dc, oldBrush); SelectObject(dc, oldPen); DeleteObject(pen);
 	RestoreDC(dc, saved);
@@ -125,10 +155,13 @@ void PaintTabs(HWND window, HDC dc)
 		{
 			RECT line = rc; line.right = line.left + 2; FillRect(dc, &line, Brush(dc, Accent));
 		}
-		DrawText(dc, text, -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
+		RECT focus = rc;
+		InflateRect(&focus, -FocusInset, 0);
+		auto label = FocusTextBounds(rc, focus);
+		DrawText(dc, text, -1, &label, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
 		if (selected && GetFocus() == window && !(SendMessage(window, WM_QUERYUISTATE, 0, 0) & UISF_HIDEFOCUS))
 		{
-			InflateRect(&rc, -3, -3); DrawFocusRect(dc, &rc);
+			PaintFocusRect(dc, focus);
 		}
 	}
 	RestoreDC(dc, saved);

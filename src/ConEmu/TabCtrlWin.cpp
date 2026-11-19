@@ -315,6 +315,7 @@ static void PaintConsoleToolbar(HWND toolbar, HDC dc)
 	if (icons)
 		ImageList_GetIconSize(icons, &iconWidth, &iconHeight);
 	const bool dark = CDwmHelper::IsWindowsDarkMode();
+	const bool useDarkGlyphs = dark && (!gpSet || !gpSet->isTabsUseWindowsAccent);
 	const auto hot = SendMessage(toolbar, TB_GETHOTITEM, 0, 0);
 	const auto count = SendMessage(toolbar, TB_BUTTONCOUNT, 0, 0);
 	for (int i = 0; i < count; ++i)
@@ -333,8 +334,9 @@ static void PaintConsoleToolbar(HWND toolbar, HDC dc)
 		const bool highlighted = pressed || checked || hovered;
 		const auto background = !highlighted ? colors.strip : dark && pressed ? RGB(80, 80, 80)
 			: dark && hovered ? DarkMode::Hover : colors.active;
-		const auto foreground = dark && !enabled ? DarkMode::Hint
-			: highlighted ? colors.activeText : colors.stripText;
+		const auto foreground = enabled || !dark
+			? (highlighted ? ContrastingText(background) : colors.stripText)
+			: CDwmHelper::BlendColors(background, colors.stripText, 50);
 		if (highlighted)
 			FillRect(dc, &item, DarkMode::Brush(dc, background));
 
@@ -343,7 +345,7 @@ static void PaintConsoleToolbar(HWND toolbar, HDC dc)
 		const int centerY = (item.top + item.bottom) / 2;
 		const int x = (item.left + item.right - arrowWidth - iconWidth) / 2;
 		if (icons && button.iBitmap >= 0
-			&& (!dark || iconWidth < 12 || !PaintToolbarGlyph(dc, x, centerY - iconWidth / 2, iconWidth,
+			&& (!useDarkGlyphs || iconWidth < 12 || !PaintToolbarGlyph(dc, x, centerY - iconWidth / 2, iconWidth,
 				button.idCommand, button.iBitmap, background, foreground)))
 		{
 			ImageList_Draw(icons, button.iBitmap, dc, x, centerY - iconHeight / 2,

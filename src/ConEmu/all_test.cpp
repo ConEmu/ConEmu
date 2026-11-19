@@ -258,6 +258,59 @@ TEST(DarkControls, NativeControlsRenderDarkAndReturnToLight)
 	DestroyWindow(parent);
 }
 
+TEST(DarkControls, FocusFrameKeepsTextRowsUnchanged)
+{
+	if (!global::g_darkModeSupported || IsHighContrast()) GTEST_SKIP();
+	RestoreDarkModeState restore;
+	_ShouldAppsUseDarkMode = TestAppsUseDarkMode;
+	const HWND parent = CreateWindowEx(0, L"STATIC", L"", WS_OVERLAPPEDWINDOW,
+		0, 0, 300, 200, nullptr, nullptr, GetModuleHandle(nullptr), nullptr);
+	ASSERT_NE(nullptr, parent);
+
+	constexpr int width = 160, height = 13;
+	const HDC screen = GetDC(nullptr), dc = CreateCompatibleDC(screen);
+	const HBITMAP bitmap = CreateCompatibleBitmap(screen, width, height);
+	const HGDIOBJ old = SelectObject(dc, bitmap);
+	for (const DWORD style : {BS_AUTOCHECKBOX, BS_AUTORADIOBUTTON, BS_AUTOCHECKBOX | BS_LEFTTEXT})
+	{
+		const HWND button = CreateWindowEx(0, L"BUTTON", L"MMMMMMMMMMMMMMMMMMMMMMMM", WS_CHILD | WS_VISIBLE | style,
+			0, 0, width, height, parent, nullptr, GetModuleHandle(nullptr), nullptr);
+		EXPECT_NE(nullptr, button);
+		if (!button)
+			continue;
+		SendMessage(button, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), FALSE);
+		DarkMode::ApplyDialog(parent);
+		SetFocus(button);
+		EXPECT_EQ(button, GetFocus());
+
+		COLORREF unfocused[height][width] = {};
+		SendMessage(button, WM_UPDATEUISTATE, MAKEWPARAM(UIS_SET, UISF_HIDEFOCUS), 0);
+		SendMessage(button, WM_PRINTCLIENT, reinterpret_cast<WPARAM>(dc), PRF_CLIENT);
+		for (int y = 0; y < height; ++y)
+			for (int x = 0; x < width; ++x)
+				unfocused[y][x] = GetPixel(dc, x, y);
+
+		SendMessage(button, WM_UPDATEUISTATE, MAKEWPARAM(UIS_CLEAR, UISF_HIDEFOCUS), 0);
+		SendMessage(button, WM_PRINTCLIENT, reinterpret_cast<WPARAM>(dc), PRF_CLIENT);
+		for (int y = 0; y < height; ++y)
+		{
+			bool changed = false;
+			for (int x = 0; x < width; ++x)
+			{
+				const auto focused = GetPixel(dc, x, y);
+				if (unfocused[y][x] == DarkMode::Text)
+					EXPECT_EQ(unfocused[y][x], focused) << "text pixel at " << x << "," << y;
+				if (x >= 32 && x < width - 32)
+					changed |= unfocused[y][x] != focused;
+			}
+			EXPECT_EQ(y == 0 || y == height - 1, changed) << "row " << y;
+		}
+		DestroyWindow(button);
+	}
+	SelectObject(dc, old); DeleteObject(bitmap); DeleteDC(dc); ReleaseDC(nullptr, screen);
+	DestroyWindow(parent);
+}
+
 #if CE_UNIT_TEST==1
 #include "../common/MAssert.h"
 extern bool gbVerifyVerbose;
