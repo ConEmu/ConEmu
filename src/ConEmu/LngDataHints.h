@@ -408,6 +408,7 @@ static LngPredefined gsDataHints[] = {
 	{ vkMoveTabRight,          L"Move active tab rightward" },
 	{ vkMultiAltCon,           L"Show alternative console buffer (last command output)" },
 	{ vkMultiBuffer,           L"Switch bufferheight mode" },
+    { vkSwitchTermMode,        L"Switch Terminal Input Mode" },
 	{ vkMultiClose,            L"Close active console" },
 	{ vkMultiCmd,              L"Create new %s console" },
 	{ vkMultiGroup,            L"Group keyboard input for visible splits" },

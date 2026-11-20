@@ -101,9 +101,6 @@ bool SearchAppPaths(LPCWSTR asFilePath, CEStr& rsFound, const bool abSetPath, CE
 					rsFound.Set(pszPath);
 					bFound = true;
 
-					if (pszCheck != szVal)
-						free(pszCheck);
-
 					// The program may require additional "%PATH%". So, if allowed...
 					if (abSetPath)
 					{

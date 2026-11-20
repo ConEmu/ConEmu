@@ -1352,6 +1352,7 @@
 #define stStartupShellGeneral           3110
 #define tFarHourglass                   3111
 #define vkSetFocusParent                3212
+#define vkSwitchTermMode                3220
 #define IDC_STATIC                      -1
 
 // Next default values for new objects

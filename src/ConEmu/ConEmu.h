@@ -597,6 +597,7 @@ class CConEmuMain
 		int ActiveConNum(); // 0-based
 		int GetConCount(); // количество открытых консолей
 		void AskChangeBufferHeight();
+        void AskChangeTermMode();
 		void AskChangeAlternative();
 		void AttachToDialog();
 		void CheckFocus(LPCWSTR asFrom);

@@ -1299,13 +1299,15 @@ CSI P s @			Insert P s (Blank) Character(s) (default = 1) (ICH)
 	switch (Code.Action) // case sensitive
 	{
 	case L's':
-		// Save cursor position (can not be nested)
-		XTermSaveRestoreCursor(true);
+		if (Code.PvtLen == 0)
+			// Save cursor position (can not be nested)
+			XTermSaveRestoreCursor(true);
 		break;
 
 	case L'u':
-		// Restore cursor position
-		XTermSaveRestoreCursor(false);
+		if (Code.PvtLen == 0)
+			// Restore cursor position
+			XTermSaveRestoreCursor(false);
 		break;
 
 	case L'H': // Set cursor position (1-based)

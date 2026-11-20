@@ -2610,6 +2610,18 @@ CConEmuMain::~CConEmuMain()
 }
 #endif
 
+void CConEmuMain::AskChangeTermMode()
+{
+	CVConGuard VCon;
+	if (GetActiveVCon(&VCon) < 0)
+		return;
+	CVirtualConsole *pVCon = VCon.VCon();
+	CRealConsole *pRCon = pVCon->RCon();
+	if (!pRCon) return;
+
+    pRCon ->StartStopTermMode(tmc_TerminalType, cta_Switch);
+}
+
 void CConEmuMain::AskChangeBufferHeight()
 {
 	CVConGuard VCon;

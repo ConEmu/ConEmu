@@ -65,7 +65,7 @@
       "es": "Reiniciar las opciones a sus valores por defecto",
       "pl": "Zresetuj wszystkie ustawienia do wartości domyślnych",
       "it_IT": "Ripristina impostazioni ai valori di default",
-      "fr": "Remise à zéro de l'ensemble de la configuration",
+      "fr": "Réinitialiser tous les paramètres par défaut",
       "ko": "모든 설정을 기본값으로 재설정",
       "ko_KR": "모든 설정을 기본값으로 재설정",
       "pt_BR": "Reverter todas as configurações para os padrões",
@@ -115,6 +115,8 @@
             , "3. stan - dopasuj ustawienia systemowe „Aktywne śledzenie okien”" ],
       "it_IT": [ "Quando più riquadri (divisioni) sono visibili attiva contemporaneamente (metti a fuoco) la console con il passaggio del mouse,\r\n"
             , "3° stato - corrisponde alle impostazioni di sistema 'Monitoraggio attivo finestra'" ],
+      "fr": [ "Lorsque plusieurs volets sont visibles simultanément, activez la console avec le survol de la souris,\r\n"
+			, "3e état - correspond aux paramètres système « Suivi des fenêtres actives »" ],
       "ko": [ "여러 개의 창 (분할)이 동시에 보이면 마우스를 가져가서 콘솔을 활성화 (포커스 표시)합니다.\r\n"
             , "3 단계 - '활성 창 추적' 시스템 설정 일치" ],
       "ko_KR": [ "여러 개의 창 (분할)이 동시에 보이면 마우스를 가져가서 콘솔을 활성화 (포커스 표시)합니다.\r\n"
@@ -134,6 +136,7 @@
       "it_IT": "Quando questo è selezionato, l'icona 'Scudo' verrà visualizzata nelle schede, avviata 'Come amministratore'",
       "ko": "이 항목을 선택하면 탭에 '방패' 아이콘이 표시되고 '관리자 권한'으로 시작됩니다",
       "ko_KR": "이 항목을 선택하면 탭에 '방패' 아이콘이 표시되고 '관리자 권한'으로 시작됩니다",
+	  "fr": "Lorsque cette option est cochée, l'icône « Bouclier » s'affiche dans les onglets, démarré « En tant qu'administrateur »."
       "pt_BR": "Quando isso estiver marcado: o ícone de 'escudo' será exibido nas abas iniciadas 'Como administrador'",
       "id": 2109 }
     ,
@@ -160,10 +163,12 @@
             , "‘%a’ var로 삽입 위치를 선택할 수 있습니다. 그렇지 않으면 접미사가 탭 끝에 있습니다." ],
       "pt_BR": [ "Quando isso estiver marcado: o sufixo especificado será adicionado ao título das abas iniciadas 'Como administrador'\n"
             , "Você pode escolher o local de inserção com a variável '%a', ou então o sufixo ficará no final da aba." ],
+      "fr": [ "Lorsque cette option est cochée : le suffixe spécifié sera ajouté au titre des onglets, démarré « En tant qu'administrateur ».\r\n"
+	        , "Vous pouvez choisir l'emplacement d'insertion à l'aide de la variable « %a », sinon le suffixe sera ajouté à la fin de l'onglet." ],
       "id": 2110 }
     ,
     "cbAlwaysOnTop": {
-      "en": "Places the ConEmu window above all non-topmost windows. The window maintains its topmost position even when it is deactivated",
+      "en": "Places the ConEmu window above all windows. The window remains on top, even when it is not active.",
       "ru": "Размещает окно ConEmu над всеми окнами, не являющимися topmost. Окно сохраняет свое положение topmost, даже если оно деактивировано",
       "zh": "把 ConEmu 窗口放置在其他非置顶窗口的前面。即使在不激活的状态下，窗口也会一直置顶",
       "de": "Zeigt das ConEmu-Fenster über allen Fenstern, die nicht als 'zuoberst' festgelegt wurden. Das Fenster behält seine oberste Position auch wenn es inaktiv ist",
@@ -174,6 +179,7 @@
       "ko": "ConEmu 창을 최상위가 아닌 모든 창 위에 놓습니다. 창은 비활성화된 경우에도 최상위 위치를 유지합니다",
       "ko_KR": "ConEmu 창을 최상위가 아닌 모든 창 위에 놓습니다. 창은 비활성화된 경우에도 최상위 위치를 유지합니다",
       "pt_BR": "Posiciona a janela do ConEmu acima de todas as outras janelas não elevadas. A janela mantém sua posição acima das demais mesmo quando desativada",
+	  "fr": "Place la fenêtre ConEmu au-dessus de toutes les autres fenêtres. La fenêtre reste au premier plan, même lorsqu'elle est inactive.",
       "id": 1572 }
     ,
     "cbAlwaysShowTrayIcon": {
@@ -188,6 +194,7 @@
       "ko": "작업 표시줄 상태 영역 (TSA)에 항상 ConEmu 아이콘 표시",
       "ko_KR": "작업 표시줄 상태 영역 (TSA)에 항상 ConEmu 아이콘 표시",
       "pt_BR": "Sempre mostre o ícone do ConEmu na Área de Estado da Barra de Tarefas (AEBT)",
+	  "fr": "Afficher toujours l'icône ConEmu dans la zone d'état de la barre des tâches",
       "id": 1736 }
     ,
     "cbAnsiLog": {
@@ -214,7 +221,10 @@
             , "(dotyczy tylko nowych konsol)" ],
       "it_IT": [ "Scrivi l'output della console su file di testo.\r\n"
             , "ConEmu-AAAA-MM-GG-pNNNN.log\r\n"
-            , "(avrà effetto solo per console nuove)" ],
+			, "(avrà effetto solo per console nuove)" ],
+	  "fr:": [ "Enregistrer la sortie de la console dans des fichiers texte\r\n"
+	        , "ConEmu-AAAA-MM-JJ-pNNNN.log\r\n"
+			, "(affecte uniquement les nouvelles consoles)" ],
       "ko": [ "콘솔 출력을 텍스트 파일에 기록\r\n"
             , "ConEmu-YYYY-MM-DD-pNNNN.log\r\n"
             , "(새 콘솔에만 영향을 미침)" ],
@@ -235,6 +245,8 @@
             , "（仅对新控制台有效）" ],
       "de": [ "ANSI-Sequenzen protokollieren\n"
             , "(wirkt sich nur auf neue Fenster aus)" ],
+	  "fr": [ "Écrire des séquences ANSI dans le journal de la console\r\n"
+			, "(affecte uniquement les nouvelles consoles)" ],
       "ja": [ "console log を ANSI 形式で書き込む\r\n"
             , "(新規コンソールでのみ有効)" ],
       "es": [ "Escribir secuencias ANSI al log del terminal\r\n"
@@ -252,7 +264,7 @@
       "id": 3105 }
     ,
     "cbAutoRegFonts": {
-      "en": [ "Use in ConEmu fonts, located in ConEmu folder.\r\n"
+      "en": [ "Load and include ConEmu fonts, located in the ConEmu folder.\r\n"
             , "*.ttf, *.otf and *.bdf files are supported." ],
       "ru": [ "Загружать и подключать шрифты из папки ConEmu.\r\n"
             , "Поддерживаются: *.ttf, *.otf и *.bdf." ],
@@ -274,6 +286,8 @@
             , "*.ttf, *.otf 및 *.bdf 파일이 지원됩니다." ],
       "pt_BR": [ "Usar em fontes do ConEmu, localizadas na pasta do ConEmu\n"
             , "Arquvos *.ttf, *.otf e *.bdf são suportados" ],
+	  "fr": [ "Chargez et incluez les polices ConEmu, situées dans le dossier ConEmu.\r\n"
+			, "Les fichiers *.ttf, *.otf et *.bdf sont pris en charge." ],
       "id": 1550 }
     ,
     "cbBgAllowPlugin": {
@@ -299,10 +313,12 @@
             , "3 단계 - 뷰어/편집기에서 그리지 않음" ],
       "pt_BR": [ "Habilitar plano de fundo dos plugins do Far (p. ex. Colorizador de Painel)\n"
             , "3º estado: sem plano de fundo no visualizador/editor" ],
+	  "fr": [ "Activer les plugins d'arrière-plan 'Far' (Par exemple, Panel Colorer),\r\n"
+			, "3e-Etat - ne pas dessiner dans la visionneuse/l'éditeur" ],
       "id": 1734 }
     ,
     "cbBgImage": {
-      "en": [ "Show background image instead standard\r\n"
+      "en": [ "Show background image instead of default\r\n"
             , "colors #0 and #1 (black and blue)\r\n"
             , "3rd-state - don't draw in viewer/editor" ],
       "ru": [ "Показывать фоновое изображение вместо стандартного\r\n"
@@ -335,6 +351,10 @@
       "pt_BR": [ "Exibir a imagem de plano de fundo em vez do padrão\n"
             , "cores #0 e #1 (preto e azul)\n"
             , "3º estado: não exibir no visualizador/editor" ],
+	  "fr": [ "Afficher l'image d'arrière-plan à la place de l'image par défault\r\n"
+	        , "couleurs n∘ 0 et n∘ 1 (noir et bleu)"
+			, "3e état - ne pas afficher dans la visionneuse/l'éditeur" ],
+	        
       "id": 1699 }
     ,
     "cbBold": {
@@ -349,6 +369,7 @@
       "ko": "기본 글꼴 두께",
       "ko_KR": "기본 글꼴 두께",
       "pt_BR": "Espessura da fonte principal",
+	  "fr": "Poids de police principal",
       "id": 2278 }
     ,
     "cbClinkWebPage": {
@@ -363,6 +384,7 @@
       "ko": "브라우저에서 clink 웹 페이지 https://chrisant996.github.io/clink/ 를 엽니다",
       "ko_KR": "브라우저에서 clink 웹 페이지 https://chrisant996.github.io/clink/ 를 엽니다",
       "pt_BR": "Abra a página da web do clink https://chrisant996.github.io/clink/ em seu navegador",
+	  "fr": "Ouvrez le page Web de clink https://chrisant996.github.io/clink/ dans votre navigateur",
       "id": 2614 }
     ,
     "cbCloseConsoleConfirm": {
@@ -377,6 +399,7 @@
       "ko": "탭 또는 페이지를 닫기 전에 확인 표시 (탭 '닫기' 메뉴 항목)",
       "ko_KR": "탭 또는 페이지를 닫기 전에 확인 표시 (탭 '닫기' 메뉴 항목)",
       "pt_BR": "Exibir confirmação antes de fechar uma aba ou uma página (item 'Fechar' do menu da aba)",
+	  "fr": "Afficher une confirmation avant de fermer l'onglet ou la page (élément de menu « Fermer » de l'onglet),
       "id": 2179 }
     ,
     "cbCloseEditViewConfirm": {
@@ -391,10 +414,11 @@
       "ko": "Far Manager 편집기 또는 뷰어 탭을 닫기 전에 확인 표시",
       "ko_KR": "Far Manager 편집기 또는 뷰어 탭을 닫기 전에 확인 표시",
       "pt_BR": "Exibir confirmação antes de fechar a aba do editor ou do visualizador do Far Manager",
+	  "fr": "Afficher la confirmation avant de fermer l'éditeur Far Manager ou l'onglet de visualisation",
       "id": 2517 }
     ,
     "cbCloseWindowConfirm": {
-      "en": "Show confirmation before closing ConEmu window (cross clicking)",
+      "en": "Show confirmation before closing ConEmu window (Click the 'X')",
       "ru": "Показать подтверждение перед закрытием окна ConEmu (щелчок по крестику)",
       "zh": "关闭 ConEmu 窗口时需要确认",
       "de": "Zeigt Rückfragedialog vor Schließen des ConEmu-Fensters (X anklicken)",
@@ -405,6 +429,7 @@
       "ko": "ConEmu 창을 닫기 전에 확인 표시 (크로스 클릭)",
       "ko_KR": "ConEmu 창을 닫기 전에 확인 표시 (크로스 클릭)",
       "pt_BR": "Exibir confirmação antes de fechar a janela do ConEmu (clique no ícone do 'X')",
+	  "fr": "Afficher la confirmation avant de fermer la fenêtre ConEmu (cliquer sur le 'X')",
       "id": 2757 }
     ,
     "cbCmdTaskbarCommands": {
@@ -419,6 +444,7 @@
       "ko": "콘솔을 실행하는데 사용되는 작업 표시줄 점프 목록 명령에 표시 (기록)",
       "ko_KR": "콘솔을 실행하는데 사용되는 작업 표시줄 점프 목록 명령에 표시 (기록)",
       "pt_BR": "Exibir nos atalhos rápidos da barra de tarefas os comandos usados para executar consoles (histórico)",
+	  "fr": "Afficher les commandes de lancement de la console dans le liste de raccourcis (historique)",
       "id": 2133 }
     ,
     "cbCmdTaskbarTasks": {
@@ -433,6 +459,7 @@
       "ko": "작업 표시줄 점프 목록에 적합한 작업에 표시 (작업 속성 확인)",
       "ko_KR": "작업 표시줄 점프 목록에 적합한 작업에 표시 (작업 속성 확인)",
       "pt_BR": "Exibir nos atalhos rápidos da barra de tarefas as tarefas possíveis (confira as propriedades de tarefas)",
+	  "fr": "Afficher les tâches autorisées dans la liste de raccourcis (Tâches, Liste de raccourcis)",
       "id": 2132 }
     ,
     "cbCmdTaskbarUpdate": {
@@ -447,6 +474,7 @@
       "ko": "특히 '자동 업데이트'를 선택하지 않은 경우 점프 목록을 업데이트하는 것을 잊지 마십시오",
       "ko_KR": "특히 '자동 업데이트'를 선택하지 않은 경우 점프 목록을 업데이트하는 것을 잊지 마십시오",
       "pt_BR": "Não esquecer de atualizar os atalhos rápidos, principalmente se 'Autoatualizar' não estiver marcado",
+	  "fr": "N'oubliez pas d'actualiser la liste de raccourcis, en particulier si l'option « Mise à jour automatic » est désactivée.",
       "id": 2320 }
     ,
     "cbComspecTest": {
@@ -461,6 +489,7 @@
       "ko": "'계산된' ComSpec 경로 표시",
       "ko_KR": "'계산된' ComSpec 경로 표시",
       "pt_BR": "Exibir caminho 'calculado' do ComSpec",
+	  "fr": "Afficher le chemin « calculé » par ComSpec",
       "id": 2162 }
     ,
     "cbComspecUpdateEnv": {
@@ -475,6 +504,7 @@
       "ko": "ConEmu는 %ComSpec% 변수를 선택한 명령 프로세서로 업데이트할 수 있습니다",
       "ko_KR": "ConEmu는 %ComSpec% 변수를 선택한 명령 프로세서로 업데이트할 수 있습니다",
       "pt_BR": "O ConEmu pode atualizar a variável %ComSpec% para selecionar o processador de comandos",
+	  "fr": "ConEmu peut mettre à jour la variable %ComSpec% pour le processeur de commande sélectionné",
       "id": 2160 }
     ,
     "cbConfirmCloseRunning": {
@@ -489,6 +519,7 @@
       "ko": "콘솔에 두 개 이상의 사용자 프로세스가 있는 경우",
       "ko_KR": "콘솔에 두 개 이상의 사용자 프로세스가 있는 경우",
       "pt_BR": "Se houver dois ou mais processos de usuário no console",
+	  "fr": "S'il y a deux processus utilisateur ou plus dans la console",
       "id": 2758 }
     ,
     "cbConsoleExceptionHandler": {

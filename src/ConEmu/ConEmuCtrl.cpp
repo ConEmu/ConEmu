@@ -526,6 +526,14 @@ bool CConEmuCtrl::key_MultiBuffer(const ConEmuChord& VkState, bool TestOnly, con
 }
 
 // pRCon may be nullptr
+bool CConEmuCtrl::key_SwitchTermMode(const ConEmuChord& VkState, bool TestOnly, const ConEmuHotKey* hk, CRealConsole* pRCon)
+{
+    if (TestOnly)
+        return true;
+    gpConEmu->AskChangeTermMode();
+    return true;
+}
+// pRCon may be nullptr
 bool CConEmuCtrl::key_DuplicateRoot(const ConEmuChord& VkState, bool TestOnly, const ConEmuHotKey* hk, CRealConsole* pRCon)
 {
 	if (!pRCon)
